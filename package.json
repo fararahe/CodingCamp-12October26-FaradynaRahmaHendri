@@ -1,0 +1,23 @@
+{
+  "name": "todo-life-dashboard",
+  "version": "1.0.0",
+  "description": "A personal productivity and life management web application",
+  "main": "js/script.js",
+  "scripts": {
+    "test": "jest --coverage",
+    "test:watch": "jest --watch",
+    "test:unit": "jest --testPathPattern=\\.unit\\.test\\.js$",
+    "test:integration": "jest --testPathPattern=\\.integration\\.test\\.js$"
+  },
+  "keywords": [
+    "todo",
+    "productivity",
+    "timer",
+    "dashboard"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "jest": "^29.7.0"
+  }
+}
