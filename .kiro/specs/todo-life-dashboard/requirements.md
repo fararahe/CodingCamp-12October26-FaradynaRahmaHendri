@@ -214,9 +214,137 @@ The To-Do List Life Dashboard is a personal productivity and life management web
 
 ---
 
+---
+
+## Requirement 15: Settings Panel with User Preferences
+
+**User Story:** As a user, I want a centralized place to manage my preferences, so that I can customize the dashboard to my liking without navigating to different sections.
+
+#### Acceptance Criteria
+
+1. WHEN the user clicks the settings icon (gear icon) next to the greeting, THE System SHALL display a settings panel
+2. THE settings panel SHALL contain input fields for the user's name
+3. THE settings panel SHALL contain theme toggle options (Light/Dark mode)
+4. THE settings panel SHALL contain Pomodoro timer duration settings
+5. WHEN changes are made to settings, THE System SHALL automatically save preferences to Local Storage
+6. WHEN any setting is changed, THE System SHALL immediately apply the change to the interface
+
+---
+
+## Requirement 16: Light / Dark Mode Toggle
+
+**User Story:** As a user, I want to switch between light and dark themes, so that I can use the dashboard comfortably in different lighting conditions.
+
+#### Acceptance Criteria
+
+1. THE System SHALL provide a Dark Mode toggle within the settings panel
+2. THE toggle SHALL use visual icons (sun/moon) to indicate current theme
+3. WHEN toggled to Dark mode, THE System SHALL apply dark color scheme to all visible elements
+4. WHEN toggled to Light mode, THE System SHALL apply light color scheme to all visible elements
+5. THE System SHALL persist the theme preference in Local Storage
+6. WHEN the user returns to the dashboard, THE System SHALL apply their saved theme preference
+
+---
+
+## Requirement 17: Custom Name in Greeting
+
+**User Story:** As a user, I want the greeting to include my name, so that the dashboard feels more personalized and welcoming.
+
+#### Acceptance Criteria
+
+1. THE System SHALL provide a name input field within the settings panel
+2. THE name input field SHALL have a placeholder text of "Enter your name..."
+3. WHEN the user enters a name and saves, THE System SHALL update the greeting to include the name
+4. WHEN the name is "Alex", THE greeting SHALL display "Good Morning, Alex!" instead of just "Good Morning"
+5. WHEN the name input is empty, THE System SHALL display only the default greeting ("Good Morning")
+6. THE System SHALL persist the user's name in Local Storage
+7. WHEN the page is reloaded, THE System SHALL display the saved name in the greeting
+
+---
+
+## Requirement 18: Customizable Pomodoro Timer Duration
+
+**User Story:** As a user, I want to customize the Pomodoro timer duration, so that I can use work intervals that match my personal productivity rhythm.
+
+#### Acceptance Criteria
+
+1. THE System SHALL provide timer duration settings within the settings panel
+2. THE System SHALL offer preset duration options: 15 minutes, 25 minutes (default), and 45 minutes
+3. THE System SHALL allow custom duration input between 1 and 120 minutes
+4. WHEN a preset is selected, THE System SHALL immediately update the timer display
+5. WHEN a custom duration is entered, THE System SHALL validate the input range (1-120) and apply it
+6. IF invalid input is entered, THE System SHALL show an error and retain the previous valid duration
+7. THE System SHALL persist the selected duration in Local Storage
+8. WHEN the page is reloaded, THE System SHALL restore the saved duration
+
+---
+
+## Requirement 19: Prevent Duplicate Tasks
+
+**User Story:** As a user, I want the system to prevent adding duplicate tasks, so that my to-do list remains clean and meaningful.
+
+#### Acceptance Criteria
+
+1. WHEN a user attempts to add a new task, THE System SHALL check for existing tasks with identical text
+2. THE duplicate check SHALL be case-insensitive (e.g., "Buy milk" and "buy milk" are considered duplicates)
+3. IF a duplicate task exists, THE System SHALL NOT add the new task
+4. IF a duplicate task exists, THE System SHALL display an error notification: "This task already exists"
+5. THE existing task SHALL remain unchanged when a duplicate is attempted
+6. THE user SHALL be able to retry adding the task with different text
+
+---
+
+## Requirement 20: Sort Tasks
+
+**User Story:** As a user, I want to sort my tasks by different criteria, so that I can organize and prioritize my to-do list effectively.
+
+#### Acceptance Criteria
+
+1. THE System SHALL provide a sort dropdown above the task list
+2. THE sort dropdown SHALL include the following options:
+   - "Newest First" (default) - Sort by creation date, most recent first
+   - "Oldest First" - Sort by creation date, oldest first
+   - "Name (A-Z)" - Sort alphabetically by task text
+   - "Name (Z-A)" - Sort alphabetically in reverse order
+   - "Completion Status" - Group incomplete tasks first, then completed tasks
+3. THE System SHALL apply sorting immediately when an option is selected
+4. THE System SHALL persist the selected sort option in Local Storage
+5. WHEN the page is reloaded, THE System SHALL restore the saved sort preference
+6. Newly added tasks SHALL appear in their sorted position according to the current sort order
+
+---
+
+## Requirement 21: Apply Theme Variables to CSS
+
+**User Story:** As a developer, I want to implement theming using CSS custom properties, so that Light/Dark mode can be easily toggled by changing variable values.
+
+#### Acceptance Criteria
+
+1. THE System SHALL define CSS custom properties (CSS variables) for all color values in css/style.css
+2. THE System SHALL define separate variable sets for light theme and dark theme
+3. THE light theme variables SHALL define appropriate colors for background, text, borders, buttons, and other UI elements
+4. THE dark theme variables SHALL define appropriate colors optimized for low-light viewing
+5. THE root element (or a theme-specific class on body) SHALL receive the active theme variables
+6. WHEN theme changes, THE System SHALL update the theme class on the body element
+7. All components SHALL reference theme variables for their styling (e.g., `background-color: var(--bg-primary)`)
+
+---
+
+## Glossary (Updated)
+
+- **Settings Panel**: A modal or overlay that opens when clicking the gear icon, containing user preference controls
+- **Theme Toggle**: A switch control that enables Dark Mode when activated
+- **Sort Dropdown**: A select element above the task list that allows choosing sort order
+- **Duplicate Task**: A task whose text content matches an existing task's text in a case-insensitive comparison
+- **Preset Duration**: Predefined Pomodoro timer values (15, 25, 45 minutes)
+- **Custom Duration**: User-defined timer duration between 1-120 minutes
+
+---
+
 ## Notes
 
 - The requirements prioritize simplicity and functionality over advanced features
-- All persistent data (tasks and quick links) must be stored in the browser's Local Storage API
+- All persistent data (tasks, quick links, user name, theme preference, timer duration, sort preference) must be stored in the browser's Local Storage API
 - The application should be self-contained and require no backend server or external services
 - User experience should prioritize quick access to all features without excessive navigation
+- Theme switching should be instant and smooth without page reload

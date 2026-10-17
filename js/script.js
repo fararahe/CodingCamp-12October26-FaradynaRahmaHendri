@@ -23,7 +23,238 @@ const AppState = {
 
   // UI state
   editingTaskId: null,
-  isInitialized: false
+  isInitialized: false,
+
+  // User preferences/settings state
+  userPreferences: {
+    userName: '',
+    theme: 'light',
+    sortOrder: 'newest',
+    timerDuration: 25,
+    timerPreset: 'default'
+  }
+};
+
+// ============================================================================
+// SORT ORDER CONSTANTS
+// ============================================================================
+
+/**
+ * Sort order options for task list
+ * @enum {string}
+ */
+const SortOrder = {
+  NEWEST: 'newest',      // Sort by creation date, most recent first
+  OLDEST: 'oldest',      // Sort by creation date, oldest first
+  NAME_ASC: 'name-asc',  // Sort alphabetically A-Z
+  NAME_DESC: 'name-desc',// Sort alphabetically Z-A
+  COMPLETION: 'completion' // Incomplete tasks first, then by creation date
+};
+
+// ============================================================================
+// SETTINGS VALIDATION SCHEMA
+// ============================================================================
+
+/**
+ * Settings validation schema with default values, validation, and sanitization
+ * Used by unified saveSettings() and loadSettings() functions
+ * 
+ * **Validates: Requirements 15.5, 17.1, 16.1, 16.2, 18.3, 20.2**
+ */
+const SettingsSchema = {
+  userName: {
+    type: 'string',
+    default: '',
+    maxLength: 50,
+    /**
+     * Sanitizes user name: trims whitespace and limits to max 50 characters
+     * @param {*} value - The value to sanitize
+     * @returns {string} - Sanitized user name
+     */
+    sanitization: (value) => {
+      if (value === null || value === undefined) {
+        return '';
+      }
+      if (typeof value !== 'string') {
+        return String(value).trim().substring(0, 50);
+      }
+      return value.trim().substring(0, 50);
+    },
+    /**
+     * Validates user name: must be a non-empty string after sanitization
+     * @param {*} value - The value to validate
+     * @returns {boolean} - True if valid
+     */
+    validation: (value) => {
+      if (value === null || value === undefined) {
+        return false;
+      }
+      const sanitized = SettingsSchema.userName.sanitization(value);
+      return typeof sanitized === 'string' && sanitized.length <= 50;
+    }
+  },
+  theme: {
+    type: 'string',
+    default: 'light',
+    /**
+     * Sanitizes theme value: ensures it's a string
+     * @param {*} value - The value to sanitize
+     * @returns {string} - Sanitized theme
+     */
+    sanitization: (value) => {
+      if (value === null || value === undefined) {
+        return 'light';
+      }
+      return String(value);
+    },
+    /**
+     * Validates theme: must be 'light' or 'dark'
+     * @param {*} value - The value to validate
+     * @returns {boolean} - True if valid
+     */
+    validation: (value) => {
+      return value === 'light' || value === 'dark';
+    }
+  },
+  sortOrder: {
+    type: 'string',
+    default: 'newest',
+    /**
+     * Sanitizes sort order value: ensures it's a string
+     * @param {*} value - The value to sanitize
+     * @returns {string} - Sanitized sort order
+     */
+    sanitization: (value) => {
+      if (value === null || value === undefined) {
+        return 'newest';
+      }
+      return String(value);
+    },
+    /**
+     * Validates sort order: must be a valid SortOrder value
+     * @param {*} value - The value to validate
+     * @returns {boolean} - True if valid
+     */
+    validation: (value) => {
+      return Object.values(SortOrder).includes(value);
+    }
+  },
+  timerDuration: {
+    type: 'number',
+    default: 25,
+    /**
+     * Sanitizes timer duration: converts to integer within valid range
+     * @param {*} value - The value to sanitize
+     * @returns {number} - Sanitized timer duration
+     */
+    sanitization: (value) => {
+      if (value === null || value === undefined) {
+        return 25;
+      }
+      const num = Number(value);
+      if (isNaN(num)) {
+        return 25;
+      }
+      // Clamp to valid range 1-120
+      return Math.max(1, Math.min(120, Math.round(num)));
+    },
+    /**
+     * Validates timer duration: must be an integer between 1 and 120
+     * @param {*} value - The value to validate
+     * @returns {boolean} - True if valid
+     */
+    validation: (value) => {
+      if (value === null || value === undefined) {
+        return false;
+      }
+      const num = Number(value);
+      return Number.isInteger(num) && num >= 1 && num <= 120;
+    }
+  },
+  timerPreset: {
+    type: 'string',
+    default: 'default',
+    /**
+     * Sanitizes timer preset value: ensures it's a string
+     * @param {*} value - The value to sanitize
+     * @returns {string} - Sanitized timer preset
+     */
+    sanitization: (value) => {
+      if (value === null || value === undefined) {
+        return 'default';
+      }
+      return String(value);
+    },
+    /**
+     * Validates timer preset: must be one of the valid preset values
+     * @param {*} value - The value to validate
+     * @returns {boolean} - True if valid
+     */
+    validation: (value) => {
+      const validPresets = ['15', 'default', '45', 'custom'];
+      return validPresets.includes(value);
+    }
+  }
+};
+
+// ============================================================================
+// SORT COMPARISON FUNCTIONS
+// ============================================================================
+
+/**
+ * Returns a comparison function for sorting tasks based on the current sort order
+ * The returned function is compatible with Array.sort() and returns negative,
+ * zero, or positive values for ordering.
+ * 
+ * **Validates: Requirements 20.2, 20.3, 20.6**
+ * 
+ * @returns {function} Comparison function for use with Array.sort(a, b)
+ */
+function getSortComparison() {
+  const sortOrder = AppState.userPreferences.sortOrder;
+  
+  switch (sortOrder) {
+    case SortOrder.NEWEST:
+      // Newest first: compare createdAt descending
+      return (a, b) => b.createdAt - a.createdAt;
+    
+    case SortOrder.OLDEST:
+      // Oldest first: compare createdAt ascending
+      return (a, b) => a.createdAt - b.createdAt;
+    
+    case SortOrder.NAME_ASC:
+      // Name A-Z: localeCompare ascending
+      return (a, b) => a.text.localeCompare(b.text);
+    
+    case SortOrder.NAME_DESC:
+      // Name Z-A: localeCompare descending
+      return (a, b) => b.text.localeCompare(a.text);
+    
+    case SortOrder.COMPLETION:
+      // Incomplete first (false < true), then by createdAt ascending
+      return (a, b) => {
+        // First compare by completion status (incomplete tasks first)
+        if (a.completed !== b.completed) {
+          return a.completed ? 1 : -1;
+        }
+        // Then by creation date (oldest first for completed/incomplete groups)
+        return a.createdAt - b.createdAt;
+      };
+    
+    default:
+      // Default to newest if unknown sort order
+      return (a, b) => b.createdAt - a.createdAt;
+  }
+}
+
+// ============================================================================
+// LOCAL STORAGE KEYS - UNIFIED STORAGE KEY CONSTANTS
+// ============================================================================
+
+const StorageKeys = {
+  TASKS: 'dashboard_tasks',
+  QUICK_LINKS: 'dashboard_quick_links',
+  SETTINGS: 'dashboard_settings'
 };
 
 // ============================================================================
@@ -31,9 +262,10 @@ const AppState = {
 // ============================================================================
 
 const LocalStorageManager = {
-  // Constants
-  TASKS_KEY: 'dashboard_tasks',
-  LINKS_KEY: 'dashboard_quick_links',
+  // Constants - using unified StorageKeys object
+  TASKS_KEY: StorageKeys.TASKS,
+  LINKS_KEY: StorageKeys.QUICK_LINKS,
+  SETTINGS_KEY: StorageKeys.SETTINGS,
 
   /**
    * Validates a task object against schema requirements
@@ -387,6 +619,418 @@ const LocalStorageManager = {
       used: used,
       limit: 5 * 1024 * 1024  // Typical 5MB limit
     };
+  },
+
+  /**
+   * Validates a single setting against the SettingsSchema
+   * @param {string} key - The setting key to validate
+   * @param {*} value - The value to validate
+   * @returns {boolean} - True if valid, false otherwise
+   * @private
+   */
+  _validateSetting(key, value) {
+    if (!SettingsSchema[key]) {
+      console.warn(`Unknown setting key: ${key}`);
+      return false;
+    }
+    return SettingsSchema[key].validation(value);
+  },
+
+  /**
+   * Sanitizes a single setting using the schema's sanitization function
+   * @param {string} key - The setting key to sanitize
+   * @param {*} value - The value to sanitize
+   * @returns {*} - Sanitized value
+   * @private
+   */
+  _sanitizeSetting(key, value) {
+    if (!SettingsSchema[key]) {
+      console.warn(`Unknown setting key: ${key}`);
+      return value;
+    }
+    return SettingsSchema[key].sanitization(value);
+  },
+
+  /**
+   * Validates all settings against the SettingsSchema
+   * @param {object} settings - Settings object to validate
+   * @returns {{valid: boolean, errors: string[]}} - Validation result with any errors
+   * @private
+   */
+  _validateAllSettings(settings) {
+    const errors = [];
+    
+    for (const key in SettingsSchema) {
+      if (SettingsSchema.hasOwnProperty(key)) {
+        const value = settings[key];
+        const schema = SettingsSchema[key];
+        
+        // Check if value is missing or undefined - use default if available
+        if (value === null || value === undefined) {
+          if (schema.default !== undefined) {
+            // This is OK, will use default
+          } else {
+            errors.push(`Missing required setting: ${key}`);
+          }
+          continue;
+        }
+        
+        // Validate the value
+        if (!schema.validation(value)) {
+          errors.push(`Invalid value for ${key}: ${JSON.stringify(value)}`);
+        }
+      }
+    }
+    
+    return {
+      valid: errors.length === 0,
+      errors: errors
+    };
+  },
+
+  /**
+   * Sanitizes all settings using schema sanitization functions
+   * @param {object} settings - Settings object to sanitize
+   * @returns {object} - Sanitized settings object
+   * @private
+   */
+  _sanitizeAllSettings(settings) {
+    const sanitized = {};
+    
+    for (const key in SettingsSchema) {
+      if (SettingsSchema.hasOwnProperty(key)) {
+        const schema = SettingsSchema[key];
+        const value = settings[key];
+        
+        // Use sanitization function if available, otherwise use default
+        if (schema.sanitization) {
+          sanitized[key] = schema.sanitization(value);
+        } else if (value !== null && value !== undefined) {
+          sanitized[key] = value;
+        } else {
+          sanitized[key] = schema.default;
+        }
+      }
+    }
+    
+    return sanitized;
+  },
+
+  /**
+   * Unified settings persistence function
+   * Validates all settings against SettingsSchema before saving
+   * Saves all preferences in a single LocalStorage call
+   * Handles storage errors gracefully
+   * 
+   * **Validates: Requirements 15.5, 15.6**
+   * 
+   * @param {object} settings - Settings object containing all user preferences
+   * @returns {{success: boolean, message?: string}} - Result with success status and optional message
+   */
+  saveSettings(settings) {
+    try {
+      // Check if LocalStorage is available
+      if (!this.isAvailable()) {
+        console.error('LocalStorage is not available');
+        showError('Unable to save settings: Storage not available');
+        return { success: false, message: 'LocalStorage not available' };
+      }
+
+      // Validate input is an object
+      if (!settings || typeof settings !== 'object') {
+        console.error('Invalid settings object provided');
+        showError('Unable to save settings: Invalid data');
+        return { success: false, message: 'Invalid settings object' };
+      }
+
+      // Sanitize all settings against the schema
+      const sanitizedSettings = this._sanitizeAllSettings(settings);
+
+      // Validate sanitized settings against the schema
+      const validationResult = this._validateAllSettings(sanitizedSettings);
+      
+      if (!validationResult.valid) {
+        console.error('Settings validation failed:', validationResult.errors);
+        showError('Unable to save settings: Validation failed');
+        return { 
+          success: false, 
+          message: 'Validation failed',
+          errors: validationResult.errors 
+        };
+      }
+
+      // Attempt to save to LocalStorage
+      try {
+        localStorage.setItem(this.SETTINGS_KEY, JSON.stringify(sanitizedSettings));
+        console.log('All settings saved to LocalStorage:', sanitizedSettings);
+        return { success: true };
+      } catch (storageError) {
+        // Handle specific storage errors
+        if (storageError.name === 'QuotaExceededError') {
+          console.error('LocalStorage quota exceeded when saving settings:', storageError);
+          showError('Storage is full. Unable to save settings.');
+          return { 
+            success: false, 
+            message: 'Storage quota exceeded',
+            canRecover: true 
+          };
+        }
+        
+        // Handle private browsing mode and other security errors
+        if (storageError.name === 'SecurityError') {
+          console.error('Security error accessing LocalStorage (possibly private browsing):', storageError);
+          showError('Unable to save settings in private browsing mode.');
+          return { 
+            success: false, 
+            message: 'Security error - storage blocked',
+            canRecover: false 
+          };
+        }
+        
+        // Handle other storage errors
+        console.error('Error saving settings to LocalStorage:', storageError);
+        showError('Failed to save settings to storage.');
+        return { 
+          success: false, 
+          message: 'Storage error',
+          error: storageError.message 
+        };
+      }
+    } catch (error) {
+      console.error('Unexpected error in saveSettings:', error);
+      showError('An unexpected error occurred while saving settings.');
+      return { 
+        success: false, 
+        message: 'Unexpected error',
+        error: error.message 
+      };
+    }
+  },
+
+  /**
+   * Saves user preferences to LocalStorage
+   * Wrapper around saveSettings() for backward compatibility
+   * 
+   * @param {object} preferences - User preferences object to save
+   * @returns {boolean} - True if save was successful
+   */
+  savePreferences(preferences) {
+    const result = this.saveSettings(preferences);
+    return result.success;
+  },
+
+  /**
+   * Loads user preferences from LocalStorage
+   * Returns preferences object with timer duration, theme, etc.
+   * Uses SettingsSchema defaults and sanitization for consistent behavior
+   * 
+   * @returns {object} - User preferences object, or default preferences on error
+   */
+  loadPreferences() {
+    try {
+      const stored = localStorage.getItem(this.SETTINGS_KEY);
+      
+      if (!stored) {
+        // Return default preferences from schema
+        return this._getDefaultPreferences();
+      }
+      
+      let preferences;
+      try {
+        preferences = JSON.parse(stored);
+      } catch (parseError) {
+        console.error('JSON parse error loading preferences:', parseError);
+        localStorage.removeItem(this.SETTINGS_KEY);
+        return this._getDefaultPreferences();
+      }
+      
+      if (!preferences || typeof preferences !== 'object') {
+        console.error('Invalid preferences structure in LocalStorage');
+        return this._getDefaultPreferences();
+      }
+      
+      // Sanitize and validate all settings using schema
+      const sanitized = this._sanitizeAllSettings(preferences);
+      
+      // Validate and return with defaults for missing/invalid properties
+      return this._applyDefaultsForInvalid(sanitized);
+    } catch (error) {
+      console.error('Error loading user preferences:', error);
+      return this._getDefaultPreferences();
+    }
+  },
+
+  /**
+   * Returns default preferences from schema defaults
+   * @returns {object} - Default preferences object
+   * @private
+   */
+  _getDefaultPreferences() {
+    const defaults = {};
+    for (const key in SettingsSchema) {
+      if (SettingsSchema.hasOwnProperty(key)) {
+        defaults[key] = SettingsSchema[key].default;
+      }
+    }
+    return defaults;
+  },
+
+  /**
+   * Applies defaults for any missing or invalid properties
+   * @param {object} preferences - Preferences object to validate
+   * @returns {object} - Validated preferences with defaults applied
+   * @private
+   */
+  _applyDefaultsForInvalid(preferences) {
+    const result = {};
+    
+    for (const key in SettingsSchema) {
+      if (SettingsSchema.hasOwnProperty(key)) {
+        const schema = SettingsSchema[key];
+        const value = preferences[key];
+        
+        // Check if value is valid
+        if (value === null || value === undefined) {
+          result[key] = schema.default;
+        } else if (schema.validation(value)) {
+          result[key] = value;
+        } else {
+          console.warn(`Invalid value for ${key}, using default`);
+          result[key] = schema.default;
+        }
+      }
+    }
+    
+    return result;
+  },
+
+  /**
+   * Unified settings loading function
+   * Loads settings from LocalStorage with validation
+   * Applies schema defaults for missing or invalid values
+   * 
+   * **Validates: Requirements 15.5, 15.6**
+   * 
+   * @returns {{success: boolean, settings?: object, message?: string}} - Result with settings or error message
+   */
+  loadSettings() {
+    try {
+      // Check if LocalStorage is available
+      if (!this.isAvailable()) {
+        console.error('LocalStorage is not available');
+        return { 
+          success: false, 
+          message: 'LocalStorage not available',
+          settings: this._getDefaultPreferences()
+        };
+      }
+
+      const stored = localStorage.getItem(this.SETTINGS_KEY);
+      
+      if (!stored) {
+        console.log('No settings found in LocalStorage, using defaults');
+        return { 
+          success: true, 
+          settings: this._getDefaultPreferences() 
+        };
+      }
+      
+      let preferences;
+      try {
+        preferences = JSON.parse(stored);
+      } catch (parseError) {
+        console.error('JSON parse error loading settings:', parseError);
+        localStorage.removeItem(this.SETTINGS_KEY);
+        return { 
+          success: false, 
+          message: 'Corrupted settings data',
+          settings: this._getDefaultPreferences()
+        };
+      }
+      
+      if (!preferences || typeof preferences !== 'object') {
+        console.error('Invalid settings structure in LocalStorage');
+        return { 
+          success: false, 
+          message: 'Invalid settings format',
+          settings: this._getDefaultPreferences()
+        };
+      }
+      
+      // Sanitize all settings
+      const sanitized = this._sanitizeAllSettings(preferences);
+      
+      // Validate and apply defaults for any invalid values
+      const validSettings = this._applyDefaultsForInvalid(sanitized);
+      
+      return { 
+        success: true, 
+        settings: validSettings 
+      };
+    } catch (error) {
+      console.error('Unexpected error in loadSettings:', error);
+      return { 
+        success: false, 
+        message: 'Unexpected error',
+        error: error.message,
+        settings: this._getDefaultPreferences()
+      };
+    }
+  },
+
+  /**
+   * Returns the default settings object
+   * Used when no saved settings exist or on error
+   * 
+   * @returns {object} - Default settings object with all required properties
+   * 
+   * **Validates: Requirements 15.5, 15.6**
+   */
+  getDefaultSettings() {
+    return {
+      userName: '',
+      theme: 'light',
+      sortOrder: 'newest',
+      timerDuration: 25,
+      timerPreset: 'default'
+    };
+  },
+
+  /**
+   * Validates and normalizes settings against the SettingsSchema
+   * Applies defaults for any missing or invalid values
+   * 
+   * @param {object} input - Settings object to validate and normalize
+   * @returns {object} - Normalized settings object with valid values
+   * 
+   * **Validates: Requirements 15.5, 15.6**
+   */
+  validateAndNormalizeSettings(input) {
+    const defaults = this.getDefaultSettings();
+    const result = { ...defaults };
+    
+    if (!input || typeof input !== 'object') {
+      console.warn('Invalid input to validateAndNormalizeSettings, using defaults');
+      return result;
+    }
+    
+    for (const key in SettingsSchema) {
+      if (SettingsSchema.hasOwnProperty(key)) {
+        const schema = SettingsSchema[key];
+        const value = input[key];
+        
+        // Use sanitization function if available, otherwise use value directly
+        if (schema.sanitization) {
+          result[key] = schema.sanitization(value);
+        } else if (value !== null && value !== undefined) {
+          result[key] = value;
+        } else {
+          result[key] = schema.default;
+        }
+      }
+    }
+    
+    return result;
   }
 };
 
@@ -441,7 +1085,8 @@ const GreetingComponent = {
       const hour = now.getHours();
       
       // Determine and display greeting
-      const greetingText = this.getGreeting(hour);
+      const userName = AppState.userPreferences.userName || '';
+      const greetingText = this.getGreeting(hour, userName);
       
       // Check for greeting element before manipulation
       const greetingElement = document.querySelector('.greeting-message');
@@ -500,22 +1145,34 @@ const GreetingComponent = {
   /**
    * Determines the appropriate greeting based on the current hour
    * @param {number} hour - The current hour (0-23 in 24-hour format)
-   * @returns {string} - Appropriate greeting message
+   * @param {string} userName - The user's name (optional, defaults to empty string)
+   * @returns {string} - Appropriate greeting message with optional name
    * 
    * Greeting logic:
-   * - [5, 12): "Good Morning" (5 AM to 11:59 AM)
-   * - [12, 17): "Good Afternoon" (12 PM to 4:59 PM)
-   * - [17, 24) or [0, 5): "Good Evening" (5 PM to 4:59 AM)
+   * - [5, 12): "Good Morning" or "Good Morning, [Name]!"
+   * - [12, 17): "Good Afternoon" or "Good Afternoon, [Name]!"
+   * - [17, 24) or [0, 5): "Good Evening" or "Good Evening, [Name]!"
+   * 
+   * **Validates: Requirements 17.4, 17.5**
    */
-  getGreeting(hour) {
+  getGreeting(hour, userName = '') {
+    let baseGreeting;
     if (hour >= 5 && hour < 12) {
-      return 'Good Morning';
+      baseGreeting = 'Good Morning';
     } else if (hour >= 12 && hour < 17) {
-      return 'Good Afternoon';
+      baseGreeting = 'Good Afternoon';
     } else {
       // [17, 24) or [0, 5)
-      return 'Good Evening';
+      baseGreeting = 'Good Evening';
     }
+
+    // Add name if provided (Requirement 17.4)
+    if (userName && typeof userName === 'string' && userName.trim() !== '') {
+      return `${baseGreeting}, ${userName.trim()}!`;
+    }
+
+    // Return default greeting without name (Requirement 17.5)
+    return `${baseGreeting}!`;
   },
 
   /**
@@ -537,16 +1194,31 @@ const GreetingComponent = {
 const TimerComponent = {
   /**
    * Initializes the TimerComponent
-   * Resets timer to initial state (1500 seconds / 25 minutes)
+   * Loads saved timer duration and preset from LocalStorage (default 25 minutes)
    * Sets up initial display
+   *
+   * **Validates: Requirements 18.7, 18.8 - Load duration on initialization**
    */
   init() {
-    AppState.timer.timeRemaining = 1500;  // 25 minutes * 60 seconds
+    // Load saved timer preferences from LocalStorage via unified settings system
+    const savedPreferences = LocalStorageManager.loadPreferences();
+    const duration = savedPreferences.timerDuration || 25;
+    const preset = savedPreferences.timerPreset || 'default';
+
+    // Update user preferences with saved duration and preset
+    AppState.userPreferences.timerDuration = duration;
+    AppState.userPreferences.timerPreset = preset;
+
+    // Initialize timer state with the saved duration
+    AppState.timer.timeRemaining = duration * 60;  // Convert minutes to seconds
     AppState.timer.isRunning = false;
     AppState.timer.isPaused = false;
     AppState.timer.intervalId = null;
-    
+
     this.render();
+
+    // Log successful initialization
+    console.log(`TimerComponent initialized: ${duration}min (preset: ${preset})`);
   },
 
   /**
@@ -693,13 +1365,67 @@ const TimerComponent = {
       AppState.timer.intervalId = null;
     }
     
-    // Reset state to initial values
-    AppState.timer.timeRemaining = 1500;  // 25 minutes
+    // Reset state to user's preferred duration
+    const duration = AppState.userPreferences.timerDuration || 25;
+    AppState.timer.timeRemaining = duration * 60;  // Convert minutes to seconds
     AppState.timer.isRunning = false;
     AppState.timer.isPaused = false;
     
     // Update the display
     this.render();
+  },
+
+  /**
+   * Sets the timer duration to the specified minutes
+   * Updates timer duration preference and time remaining
+   * Stops any running timer and updates the display
+   * Persists the setting to LocalStorage
+   * 
+   * @param {number} minutes - Duration in minutes (1-120)
+   * @param {string} [preset='default'] - The preset identifier ('15', 'default', '45', 'custom')
+   * @returns {boolean} - True if duration was set successfully
+   * 
+   * **Validates: Requirements 18.1, 18.4, 18.5 - Preset and custom duration selection and immediate display update**
+   */
+  setTimerDuration(minutes, preset = 'default') {
+    try {
+      // Validate minutes parameter
+      if (typeof minutes !== 'number' || isNaN(minutes) || minutes < 1 || minutes > 120) {
+        console.error('Invalid timer duration:', minutes);
+        showError('Timer duration must be between 1 and 120 minutes');
+        return false;
+      }
+
+      // Stop any running timer
+      if (AppState.timer.intervalId !== null) {
+        clearInterval(AppState.timer.intervalId);
+        AppState.timer.intervalId = null;
+      }
+
+      // Update user preferences
+      AppState.userPreferences.timerDuration = minutes;
+      AppState.userPreferences.timerPreset = preset;
+      
+      // Convert minutes to seconds and update time remaining
+      AppState.timer.timeRemaining = minutes * 60;
+      
+      // Reset timer state flags
+      AppState.timer.isRunning = false;
+      AppState.timer.isPaused = false;
+
+      // Save preferences to LocalStorage
+      LocalStorageManager.savePreferences(AppState.userPreferences);
+
+      // Update the timer display immediately
+      this.render();
+
+      console.log(`Timer duration set to ${minutes} minutes (preset: ${preset})`);
+      return true;
+    } catch (error) {
+      console.error('Error setting timer duration:', error);
+      showError('Failed to set timer duration');
+      return false;
+    }
   },
 
   /**
@@ -767,6 +1493,763 @@ const PerformanceMonitor = {
       console.error(`${operationName} failed after ${duration.toFixed(2)}ms:`, error);
       throw error;
     }
+  }
+};
+
+// ============================================================================
+// NAME MANAGER
+// ============================================================================
+
+const NameManager = {
+  // Maximum name length
+  MAX_NAME_LENGTH: 50,
+
+  /**
+   * Sanitizes the name input
+   * Trims whitespace and limits to max 50 characters
+   * Uses SettingsSchema.userName.sanitization for consistency
+   *
+   * @param {string} name - The name to sanitize
+   * @returns {string} - The sanitized name
+   *
+   * **Validates: Requirements 17.3, 17.5 - Input sanitization**
+   */
+  sanitizeName(name) {
+    return SettingsSchema.userName.sanitization(name);
+  },
+
+  /**
+   * Gets the saved name from LocalStorage
+   * Uses unified settings persistence system (AppState.userPreferences)
+   *
+   * @returns {string} - The saved name, or empty string if not found
+   *
+   * **Validates: Requirements 17.6, 17.7 - Name loaded from unified settings on initialization**
+   */
+  getName() {
+    return AppState.userPreferences.userName || '';
+  },
+
+  /**
+   * Saves the name to LocalStorage via unified settings persistence system
+   * Updates AppState.userPreferences.userName and persists via LocalStorageManager
+   *
+   * @param {string} name - The name to save (will be sanitized)
+   * @returns {boolean} - True if save was successful
+   *
+   * **Validates: Requirements 17.6, 17.7 - Name persisted via unified settings**
+   */
+  saveName(name) {
+    const sanitizedName = this.sanitizeName(name);
+
+    // Update AppState.userPreferences with the sanitized name
+    AppState.userPreferences.userName = sanitizedName;
+
+    // Save via unified settings persistence system
+    const saveResult = LocalStorageManager.savePreferences(AppState.userPreferences);
+
+    if (saveResult) {
+      console.log(`Name saved via unified settings: "${sanitizedName}"`);
+    }
+
+    return saveResult;
+  },
+
+  /**
+   * Gets the full greeting message with name (if set)
+   * @returns {string} - The greeting message
+   * 
+   * **Validates: Requirements 17.3, 17.5**
+   */
+  getGreetingWithName() {
+    const now = new Date();
+    const hour = now.getHours();
+    
+    // Get base greeting from time of day
+    let baseGreeting;
+    if (hour >= 5 && hour < 12) {
+      baseGreeting = 'Good Morning';
+    } else if (hour >= 12 && hour < 17) {
+      baseGreeting = 'Good Afternoon';
+    } else {
+      baseGreeting = 'Good Evening';
+    }
+    
+    // Get saved name
+    const name = this.getName();
+    
+    // Return greeting with name if name is set, otherwise just base greeting
+    if (name && name.trim() !== '') {
+      return `${baseGreeting}, ${name}`;
+    }
+    
+    return baseGreeting;
+  },
+
+  /**
+   * Updates the greeting display to include the name
+   * 
+   * **Validates: Requirements 17.3, 17.5**
+   */
+  updateGreetingDisplay() {
+    try {
+      const greetingElement = document.querySelector('.greeting-message');
+      
+      if (!greetingElement) {
+        console.error('Greeting message element (.greeting-message) not found in DOM');
+        return false;
+      }
+      
+      const greetingText = this.getGreetingWithName();
+      greetingElement.textContent = greetingText;
+      
+      return true;
+    } catch (error) {
+      console.error('Error updating greeting display:', error);
+      return false;
+    }
+  },
+
+  /**
+   * Updates the character count display
+   * 
+   * **Validates: Requirement 17.3 - Character limit display**
+   */
+  updateCharCount() {
+    try {
+      const nameInput = document.getElementById('user-name-input');
+      const charCountCurrent = document.getElementById('char-count-current');
+      
+      if (nameInput && charCountCurrent) {
+        charCountCurrent.textContent = nameInput.value.length;
+      }
+    } catch (error) {
+      console.error('Error updating character count:', error);
+    }
+  },
+
+  /**
+   * Handles input event on name field
+   * Sanitizes, saves, and updates greeting immediately
+   * 
+   * **Validates: Requirements 17.3, 17.5**
+   */
+  handleInput(event) {
+    try {
+      const nameInput = document.getElementById('user-name-input');
+      
+      if (!nameInput) {
+        console.error('Name input element (#user-name-input) not found');
+        return false;
+      }
+      
+      const rawValue = nameInput.value;
+      
+      // Sanitize the name
+      const sanitizedValue = this.sanitizeName(rawValue);
+      
+      // If sanitization changed the value, update the input
+      if (rawValue !== sanitizedValue) {
+        nameInput.value = sanitizedValue;
+      }
+      
+      // Update character count
+      this.updateCharCount();
+      
+      // Save the sanitized name
+      this.saveName(sanitizedValue);
+      
+      // Update greeting display immediately
+      this.updateGreetingDisplay();
+      
+      return true;
+    } catch (error) {
+      console.error('Error handling name input:', error);
+      return false;
+    }
+  },
+
+  /**
+   * Handles blur event on name field
+   * Ensures final value is saved and greeting is updated
+   * 
+   * **Validates: Requirements 17.3, 17.5**
+   */
+  handleBlur(event) {
+    try {
+      const nameInput = document.getElementById('user-name-input');
+      
+      if (!nameInput) {
+        return false;
+      }
+      
+      // Get final value and sanitize
+      const sanitizedValue = this.sanitizeName(nameInput.value);
+      
+      // Update input with final sanitized value
+      nameInput.value = sanitizedValue;
+      
+      // Update character count
+      this.updateCharCount();
+      
+      // Save the sanitized name
+      this.saveName(sanitizedValue);
+      
+      // Update greeting display
+      this.updateGreetingDisplay();
+      
+      return true;
+    } catch (error) {
+      console.error('Error handling name blur:', error);
+      return false;
+    }
+  },
+
+  /**
+   * Initializes the NameManager component
+   * Loads saved name and sets up event listeners
+   * 
+   * **Validates: Requirements 17.3, 17.5**
+   * 
+   * @returns {boolean} - True if initialization was successful
+   */
+  init() {
+    try {
+      const nameInput = document.getElementById('user-name-input');
+      
+      if (!nameInput) {
+        console.warn('Name input (#user-name-input) not found in DOM');
+        return false;
+      }
+      
+      // Load saved name and set as input value
+      const savedName = this.getName();
+      nameInput.value = savedName;
+      
+      // Update character count to reflect loaded name
+      this.updateCharCount();
+      
+      // Set up event listeners
+      nameInput.addEventListener('input', (event) => this.handleInput(event));
+      nameInput.addEventListener('blur', (event) => this.handleBlur(event));
+      
+      // Initial greeting update
+      this.updateGreetingDisplay();
+      
+      console.log('✓ NameManager initialized');
+      return true;
+    } catch (error) {
+      console.error('Error initializing NameManager:', error);
+      return false;
+    }
+  },
+
+  /**
+   * Cleans up NameManager resources
+   */
+  cleanup() {
+    console.log('✓ NameManager cleaned up');
+  }
+};
+
+// ============================================================================
+// THEME MANAGER
+// ============================================================================
+
+const ThemeManager = {
+  // Theme preference storage key
+  THEME_KEY: 'dashboard_theme',
+  
+  // Valid themes
+  THEMES: ['light', 'dark'],
+  
+  // Default theme
+  DEFAULT_THEME: 'light',
+  
+  /**
+   * Gets the current theme from document.body
+   * @returns {string} - 'light' or 'dark'
+   * 
+   * **Validates: Requirements 16.1, 16.3, 16.4**
+   */
+  getCurrentTheme() {
+    if (document.body.classList.contains('dark-theme')) {
+      return 'dark';
+    }
+    return 'light';
+  },
+  
+  /**
+   * Sets the theme by adding/removing .dark-theme class on document.body
+   * Validates the theme parameter before applying
+   * 
+   * @param {string} theme - 'light' or 'dark'
+   * @returns {boolean} - True if theme was set successfully
+   * 
+   * **Validates: Requirements 16.2, 16.3, 16.4**
+   */
+  setTheme(theme) {
+    // Validate theme parameter
+    if (theme === null || theme === undefined) {
+      console.warn('Theme cannot be null or undefined');
+      showError('Invalid theme');
+      return false;
+    }
+    
+    if (typeof theme !== 'string') {
+      console.warn('Theme must be a string');
+      showError('Invalid theme type');
+      return false;
+    }
+    
+    if (!this.THEMES.includes(theme)) {
+      console.warn(`Invalid theme: ${theme}. Valid themes are: ${this.THEMES.join(', ')}`);
+      showError('Invalid theme');
+      return false;
+    }
+    
+    // Apply theme class to document.body
+    if (theme === 'dark') {
+      document.body.classList.add('dark-theme');
+    } else {
+      document.body.classList.remove('dark-theme');
+    }
+    
+    // Update button visual states
+    this.updateButtonStates(theme);
+    
+    // Update aria-pressed attributes for accessibility
+    this.updateAriaStates(theme);
+    
+    // Persist theme preference - update both individual storage and unified preferences
+    this.saveThemePreference(theme);
+    
+    // Also sync with AppState.userPreferences for unified storage approach
+    AppState.userPreferences.theme = theme;
+    LocalStorageManager.savePreferences(AppState.userPreferences);
+    
+    console.log(`Theme set to: ${theme}`);
+    return true;
+  },
+  
+  /**
+   * Toggles between light and dark themes
+   * @returns {string} - The new theme after toggling
+   * 
+   * **Validates: Requirements 16.1, 16.3, 16.4**
+   */
+  toggleTheme() {
+    const currentTheme = this.getCurrentTheme();
+    const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+    this.setTheme(newTheme);
+    return newTheme;
+  },
+  
+  /**
+   * Updates the visual state of theme toggle buttons
+   * Adds/removes active state and data-active attribute
+   * 
+   * @param {string} activeTheme - The theme that should be active
+   * @private
+   */
+  updateButtonStates(activeTheme) {
+    const themeButtons = document.querySelectorAll('[data-theme]');
+    
+    themeButtons.forEach(button => {
+      const buttonTheme = button.getAttribute('data-theme');
+      
+      if (buttonTheme === activeTheme) {
+        button.classList.add('active');
+        button.setAttribute('data-active', 'true');
+      } else {
+        button.classList.remove('active');
+        button.setAttribute('data-active', 'false');
+      }
+    });
+  },
+  
+  /**
+   * Updates aria-pressed attributes for accessibility
+   * The active theme button will have aria-pressed="true"
+   * 
+   * @param {string} activeTheme - The theme that should be marked as pressed
+   * @private
+   */
+  updateAriaStates(activeTheme) {
+    const themeButtons = document.querySelectorAll('[data-theme]');
+    
+    themeButtons.forEach(button => {
+      const buttonTheme = button.getAttribute('data-theme');
+      
+      if (buttonTheme === activeTheme) {
+        button.setAttribute('aria-pressed', 'true');
+      } else {
+        button.setAttribute('aria-pressed', 'false');
+      }
+    });
+  },
+  
+  /**
+   * Saves theme preference to LocalStorage
+   * 
+   * @param {string} theme - Theme to save
+   * @private
+   */
+  saveThemePreference(theme) {
+    try {
+      localStorage.setItem(this.THEME_KEY, theme);
+    } catch (error) {
+      console.error('Error saving theme preference:', error);
+    }
+  },
+  
+  /**
+   * Loads theme preference from LocalStorage
+   * @returns {string} - 'light' or 'dark'
+   * @private
+   */
+  loadThemePreference() {
+    try {
+      const savedTheme = localStorage.getItem(this.THEME_KEY);
+      
+      if (savedTheme && this.THEMES.includes(savedTheme)) {
+        return savedTheme;
+      }
+    } catch (error) {
+      console.error('Error loading theme preference:', error);
+    }
+    
+    return this.DEFAULT_THEME;
+  },
+  
+  /**
+   * Initializes the theme system
+   * Loads saved preference or uses default, then applies it
+   * Sets up event listeners for theme toggle buttons
+   * 
+   * **Validates: Requirements 16.1, 16.3, 16.4**
+   * 
+   * @returns {boolean} - True if initialization was successful
+   */
+  init() {
+    try {
+      // Load saved theme preference
+      const savedTheme = this.loadThemePreference();
+      
+      // Apply the theme
+      this.setTheme(savedTheme);
+      
+      // Set up click event listeners for theme toggle buttons
+      this.setupEventListeners();
+      
+      console.log('✓ ThemeManager initialized');
+      return true;
+    } catch (error) {
+      console.error('Error initializing ThemeManager:', error);
+      return false;
+    }
+  },
+  
+  /**
+   * Sets up click event listeners for theme toggle buttons
+   * Uses event delegation on the settings panel
+   * 
+   * **Validates: Requirements 16.1, 16.3, 16.4**
+   * @private
+   */
+  setupEventListeners() {
+    // Get the settings panel or use document as fallback
+    const container = document.getElementById('settings-panel') || document.body;
+    
+    if (!container) {
+      console.warn('ThemeManager: No container found for event listeners');
+      return false;
+    }
+    
+    container.addEventListener('click', (event) => {
+      // Check if a theme button was clicked
+      const themeButton = event.target.closest('[data-theme]');
+      
+      if (themeButton) {
+        const theme = themeButton.getAttribute('data-theme');
+        
+        if (theme && this.THEMES.includes(theme)) {
+          event.preventDefault();
+          event.stopPropagation();
+          this.setTheme(theme);
+        }
+      }
+    });
+    
+    console.log('✓ Theme toggle event listeners set up');
+    return true;
+  },
+  
+  /**
+   * Cleans up theme manager resources
+   */
+  cleanup() {
+    // No specific cleanup needed for theme manager
+    console.log('✓ ThemeManager cleaned up');
+  }
+};
+
+// ============================================================================
+// SETTINGS PANEL COMPONENT
+// ============================================================================
+
+const SettingsPanel = {
+  // Track whether panel is currently open
+  isOpen: false,
+  
+  // Bound event handlers (stored for proper removal)
+  _boundKeydownHandler: null,
+  _boundClickHandler: null,
+
+  /**
+   * Opens the settings panel
+   * Shows the panel and sets up event listeners
+   * 
+   * **Validates: Requirement 15.1 - Display settings panel on gear icon click**
+   */
+  open() {
+    try {
+      const panel = document.getElementById('settings-panel');
+      const toggle = document.getElementById('settings-toggle');
+
+      if (!panel) {
+        console.error('Settings panel (#settings-panel) not found in DOM');
+        showError('Settings panel is missing');
+        return false;
+      }
+
+      // Show the panel by removing hidden attribute
+      panel.hidden = false;
+
+      // Add aria-hidden=false for accessibility
+      panel.setAttribute('aria-hidden', 'false');
+
+      // Update body for no-scroll behavior
+      document.body.classList.add('settings-open');
+
+      // Update state
+      this.isOpen = true;
+      AppState.settingsPanelOpen = true;
+
+      // Add event listeners
+      this._addEventListeners();
+
+      // Focus the close button for accessibility
+      const closeButton = panel.querySelector('.settings-close');
+      if (closeButton) {
+        setTimeout(() => closeButton.focus(), 100);
+      }
+
+      console.log('Settings panel opened');
+      return true;
+    } catch (error) {
+      console.error('Error opening settings panel:', error);
+      showError('Failed to open settings panel');
+      return false;
+    }
+  },
+
+  /**
+   * Closes the settings panel
+   * Hides the panel and removes event listeners
+   * 
+   * **Validates: Requirement 15.1 - Close panel via Escape, close button, or overlay click**
+   */
+  close() {
+    try {
+      const panel = document.getElementById('settings-panel');
+      const toggle = document.getElementById('settings-toggle');
+
+      if (!panel) {
+        console.error('Settings panel (#settings-panel) not found in DOM');
+        return false;
+      }
+
+      // Hide the panel by adding hidden attribute
+      panel.hidden = true;
+
+      // Add aria-hidden=true for accessibility
+      panel.setAttribute('aria-hidden', 'true');
+
+      // Remove no-scroll behavior
+      document.body.classList.remove('settings-open');
+
+      // Update state
+      this.isOpen = false;
+      AppState.settingsPanelOpen = false;
+
+      // Remove event listeners
+      this._removeEventListeners();
+
+      // Restore focus to toggle button for accessibility
+      if (toggle) {
+        setTimeout(() => toggle.focus(), 100);
+      }
+
+      console.log('Settings panel closed');
+      return true;
+    } catch (error) {
+      console.error('Error closing settings panel:', error);
+      return false;
+    }
+  },
+
+  /**
+   * Toggles the settings panel open/close state
+   * @returns {boolean} - True if panel is now open, false if closed
+   */
+  toggle() {
+    if (this.isOpen) {
+      this.close();
+      return false;
+    } else {
+      this.open();
+      return true;
+    }
+  },
+
+  /**
+   * Adds event listeners for panel interactions
+   * Uses bound handlers that can be properly removed
+   * @private
+   */
+  _addEventListeners() {
+    // Create bound handlers (stored for proper removal)
+    this._boundKeydownHandler = this._handleKeydown.bind(this);
+    this._boundClickHandler = this._handleClick.bind(this);
+
+    // Add document-level keydown listener for Escape key
+    document.addEventListener('keydown', this._boundKeydownHandler);
+    
+    // Add click listener to panel for close actions
+    const panel = document.getElementById('settings-panel');
+    if (panel) {
+      panel.addEventListener('click', this._boundClickHandler);
+    }
+  },
+
+  /**
+   * Removes event listeners for panel interactions
+   * @private
+   */
+  _removeEventListeners() {
+    // Remove document-level keydown listener for Escape key
+    if (this._boundKeydownHandler) {
+      document.removeEventListener('keydown', this._boundKeydownHandler);
+      this._boundKeydownHandler = null;
+    }
+    
+    // Remove click listener from panel
+    if (this._boundClickHandler) {
+      const panel = document.getElementById('settings-panel');
+      if (panel) {
+        panel.removeEventListener('click', this._boundClickHandler);
+      }
+      this._boundClickHandler = null;
+    }
+  },
+
+  /**
+   * Handles keydown events for keyboard navigation
+   * Closes panel on Escape key press
+   * @param {KeyboardEvent} event - The keyboard event
+   * @private
+   */
+  _handleKeydown(event) {
+    // Close panel on Escape key press
+    if (event.key === 'Escape' && this.isOpen) {
+      event.preventDefault();
+      event.stopPropagation();
+      this.close();
+    }
+  },
+
+  /**
+   * Handles click events for close actions
+   * Closes panel when clicking on overlay or close button
+   * @param {MouseEvent} event - The mouse event
+   * @private
+   */
+  _handleClick(event) {
+    // Check if clicked element has data-settings-close attribute
+    const target = event.target;
+    
+    // Check if the target itself or its closest ancestor has data-settings-close
+    const closestWithAttribute = target.closest('[data-settings-close]');
+    
+    if (closestWithAttribute) {
+      event.preventDefault();
+      event.stopPropagation();
+      this.close();
+    }
+  },
+
+  /**
+   * Initializes the SettingsPanel component
+   * Sets up event listeners for toggle button, close button, and overlay
+   * 
+   * **Validates: Requirement 15.1 - Settings panel open/close implementation**
+   */
+  init() {
+    try {
+      const toggle = document.getElementById('settings-toggle');
+      const panel = document.getElementById('settings-panel');
+
+      if (!toggle) {
+        console.warn('Settings toggle button (#settings-toggle) not found in DOM');
+        return false;
+      }
+
+      if (!panel) {
+        console.warn('Settings panel (#settings-panel) not found in DOM');
+        return false;
+      }
+
+      // Add click event listener to settings toggle button
+      toggle.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        this.toggle();
+      });
+
+      // Ensure panel is hidden initially
+      if (!panel.hidden) {
+        panel.hidden = true;
+        panel.setAttribute('aria-hidden', 'true');
+      }
+
+      this.isOpen = false;
+      AppState.settingsPanelOpen = false;
+
+      console.log('✓ SettingsPanel initialized');
+      return true;
+    } catch (error) {
+      console.error('Error initializing SettingsPanel:', error);
+      return false;
+    }
+  },
+
+  /**
+   * Cleans up the SettingsPanel component
+   * Removes event listeners and closes panel
+   */
+  cleanup() {
+    this._removeEventListeners();
+    this.isOpen = false;
+    AppState.settingsPanelOpen = false;
+    
+    // Ensure panel is hidden
+    const panel = document.getElementById('settings-panel');
+    if (panel) {
+      panel.hidden = true;
+      panel.setAttribute('aria-hidden', 'true');
+    }
+    document.body.classList.remove('settings-open');
   }
 };
 
@@ -914,8 +2397,27 @@ function showSuccess(message) {
 // ============================================================================
 
 /**
+ * Checks if a task with the given text already exists
+ * Comparison is case-insensitive and ignores leading/trailing whitespace
+ * 
+ * @param {string} taskText - The task text to check for duplicates
+ * @returns {boolean} - True if a duplicate task exists, false otherwise
+ * 
+ * **Validates: Requirements 19.1, 19.2**
+ */
+function isDuplicateTask(taskText) {
+  const normalizedInput = taskText.trim().toLowerCase();
+  
+  return AppState.tasks.some(existingTask => {
+    const normalizedExisting = existingTask.text.trim().toLowerCase();
+    return normalizedExisting === normalizedInput;
+  });
+}
+
+/**
  * Adds a new task to the task list with validation
  * Validates task text: non-empty, non-whitespace, ≤500 characters
+ * Checks for duplicate tasks (case-insensitive, trimmed comparison)
  * Generates unique task ID (task_{timestamp}_{counter})
  * Creates task object with text, completed=false, timestamps
  * Adds to AppState.tasks and saves to LocalStorage
@@ -923,7 +2425,7 @@ function showSuccess(message) {
  * @param {string} text - The task text to add
  * @returns {boolean} - True if task was successfully added, false otherwise
  * 
- * **Validates: Requirements 3.1, 3.2, 3.3, 3.4, 3.5**
+ * **Validates: Requirements 3.1, 3.2, 3.3, 3.4, 3.5, 19.3, 19.4**
  */
 function addTask(text) {
   try {
@@ -947,6 +2449,12 @@ function addTask(text) {
     // Validate text does not exceed 500 characters
     if (text.length > 500) {
       showError('Task cannot exceed 500 characters');
+      return false;
+    }
+    
+    // Check for duplicate task before adding
+    if (isDuplicateTask(text)) {
+      showError('This task already exists');
       return false;
     }
     
@@ -1205,10 +2713,13 @@ function deleteTask(taskId) {
  * Each task item displays: checkbox, text, edit button, delete button
  * When task is in edit mode (editingTaskId matches), shows inline input field with save/cancel buttons
  * Applies "completed" class to items where task.completed === true for strikethrough styling
+ * Tasks are sorted according to the current sort order before rendering
  * 
- * **Validates: Requirements 3.2, 5.2, 4.1, 4.2, 4.3, 4.4, 4.5, 3.3, 8.5**
+ * **Validates: Requirements 3.2, 5.2, 4.1, 4.2, 4.3, 4.4, 4.5, 3.3, 8.5, 20.3, 20.6**
+ * 
+ * @param {function} [sortComparison] - Optional comparison function for sorting tasks
  */
-function renderTaskList() {
+function renderTaskList(sortComparison) {
   try {
     // Get the task list container
     const taskListContainer = document.getElementById('task-list');
@@ -1236,8 +2747,17 @@ function renderTaskList() {
       return false;
     }
     
-    // Iterate through all tasks in AppState
-    AppState.tasks.forEach(task => {
+    // Sort tasks using the provided comparison function or getSortComparison()
+    const tasksToRender = [...AppState.tasks];
+    
+    if (sortComparison && typeof sortComparison === 'function') {
+      tasksToRender.sort(sortComparison);
+    } else {
+      tasksToRender.sort(getSortComparison());
+    }
+    
+    // Iterate through all sorted tasks
+    tasksToRender.forEach(task => {
       // Validate task object exists and is not null
       if (!task || typeof task !== 'object') {
         console.warn('Skipping null or invalid task object');
@@ -2166,6 +3686,33 @@ function handleLinkUrlKeypress(event) {
 // ============================================================================
 
 const UIController = {
+  
+/**
+ * Initializes the Theme Manager.
+ * @private
+ */
+initializeThemeManager() {
+  try {
+    if (typeof ThemeManager === 'undefined') {
+      console.error('ThemeManager is not defined');
+      return false;
+    }
+
+    if (typeof ThemeManager.init !== 'function') {
+      console.error('ThemeManager.init() is not available');
+      return false;
+    }
+
+    ThemeManager.init();
+
+    console.log('✓ ThemeManager initialized');
+    return true;
+  } catch (error) {
+    console.error('Error initializing ThemeManager:', error);
+    return false;
+  }
+},
+
   /**
    * Initializes the entire application
    * This is the main entry point that coordinates all components
@@ -2243,36 +3790,7 @@ const UIController = {
       console.log('✓ Global error handlers set up');
       
       // ============================================================================
-      // STEP 3: INITIALIZE ALL COMPONENTS
-      // ============================================================================
-      
-      // Initialize Greeting Component
-      console.log('Initializing GreetingComponent...');
-      GreetingComponent.init();
-      console.log('✓ GreetingComponent initialized');
-      
-      // Initialize Timer Component
-      console.log('Initializing TimerComponent...');
-      TimerComponent.init();
-      console.log('✓ TimerComponent initialized');
-      
-      // Initialize Task Component
-      console.log('Initializing Task component...');
-      this.initializeTaskComponent();
-      console.log('✓ Task component initialized');
-      
-      // Initialize Quick Links Component
-      console.log('Initializing Quick Links component...');
-      this.initializeQuickLinksComponent();
-      console.log('✓ Quick Links component initialized');
-      
-      // Wire up Timer Button Listeners
-      console.log('Wiring up timer button event listeners...');
-      this.initializeTimerButtons();
-      console.log('✓ Timer button listeners wired');
-      
-      // ============================================================================
-      // STEP 4: LOAD DATA FROM LOCAL STORAGE
+      // STEP 3: LOAD DATA FROM LOCAL STORAGE FIRST
       // ============================================================================
       console.log('Loading data from LocalStorage...');
       
@@ -2291,6 +3809,60 @@ const UIController = {
         AppState.quickLinks = [];
       }
       console.log(`✓ Loaded ${AppState.quickLinks.length} quick links from LocalStorage`);
+      
+      // Load user preferences from LocalStorage - MUST load before components that depend on it
+      const savedPreferences = LocalStorageManager.loadPreferences();
+      AppState.userPreferences = savedPreferences;
+      console.log(`✓ Loaded user preferences: timerDuration=${savedPreferences.timerDuration}min, theme=${savedPreferences.theme}, sortOrder=${savedPreferences.sortOrder}`);
+      
+      // Apply saved theme preference
+      if (savedPreferences.theme && (savedPreferences.theme === 'dark' || savedPreferences.theme === 'light')) {
+        ThemeManager.setTheme(savedPreferences.theme);
+      }
+      
+      // ============================================================================
+      // STEP 4: INITIALIZE ALL COMPONENTS
+      // ============================================================================
+      
+      // Initialize Greeting Component
+      console.log('Initializing GreetingComponent...');
+      GreetingComponent.init();
+      console.log('✓ GreetingComponent initialized');
+      
+      // Initialize Timer Component
+      console.log('Initializing TimerComponent...');
+      TimerComponent.init();
+      console.log('✓ TimerComponent initialized');
+      
+      // Initialize Task Component (depends on loaded userPreferences for sortOrder)
+      console.log('Initializing Task component...');
+      this.initializeTaskComponent();
+      console.log('✓ Task component initialized');
+      
+      // Initialize Quick Links Component
+      console.log('Initializing Quick Links component...');
+      this.initializeQuickLinksComponent();
+      console.log('✓ Quick Links component initialized');
+      
+      // Initialize Settings Panel
+      console.log('Initializing SettingsPanel...');
+      this.initializeSettingsPanel();
+      console.log('✓ SettingsPanel initialized');
+
+      // Initialize Theme Manager
+      console.log('Initializing ThemeManager...');
+      this.initializeThemeManager();
+      console.log('✓ ThemeManager initialized');
+      
+      // Initialize Name Manager
+      console.log('Initializing NameManager...');
+      this.initializeNameManager();
+      console.log('✓ NameManager initialized');
+      
+      // Wire up Timer Button Listeners
+      console.log('Wiring up timer button event listeners...');
+      this.initializeTimerButtons();
+      console.log('✓ Timer button listeners wired');
       
       // ============================================================================
       // STEP 5: RENDER COMPLETE INITIAL UI STATE
@@ -2413,6 +3985,31 @@ const UIController = {
       } else {
         console.warn('Task list (#task-list) not found');
       }
+      
+      // Wire up sort dropdown event listener
+      const sortSelect = document.getElementById('sort-select');
+      
+      if (sortSelect) {
+        // Set initial value based on user preferences
+        sortSelect.value = AppState.userPreferences.sortOrder || 'newest';
+        
+        sortSelect.addEventListener('change', (event) => {
+          const newSortOrder = event.target.value;
+          
+          // Update user preferences
+          AppState.userPreferences.sortOrder = newSortOrder;
+          
+          // Save preferences to LocalStorage
+          LocalStorageManager.savePreferences(AppState.userPreferences);
+          
+          // Re-render task list immediately with new sort order
+          renderTaskList();
+          
+          console.log(`Sort order changed to: ${newSortOrder}`);
+        });
+      } else {
+        console.warn('Sort select (#sort-select) not found');
+      }
     } catch (error) {
       console.error('Error initializing Task component:', error);
       throw error;
@@ -2478,6 +4075,361 @@ const UIController = {
     } catch (error) {
       console.error('Error initializing Quick Links component:', error);
       throw error;
+    }
+  },
+
+  /**
+   * Initializes the Settings Panel component
+   * Wires up event listeners for the settings toggle button, close button, and overlay
+   * 
+   * **Validates: Requirements 15.1 - Settings panel open/close logic**
+   * 
+   * @private
+   */
+  initializeSettingsPanel() {
+    try {
+      // Initialize the SettingsPanel component
+      SettingsPanel.init();
+      
+      // Store reference to panel for global access
+      AppState.settingsPanelOpen = false;
+      
+      // Initialize timer preset buttons
+      this.initializeTimerPresetButtons();
+
+      // Initialize custom timer input handling
+      this.initializeCustomTimerInput();
+
+      console.log('✓ SettingsPanel initialized');
+      return true;
+    } catch (error) {
+      console.error('Error initializing SettingsPanel:', error);
+      return false;
+    }
+  },
+
+  /**
+   * Initializes the timer preset button event listeners
+   * Wires up click listeners to preset duration buttons (15 min, 25 min, 45 min)
+   * Each button reads its duration from the data-preset attribute
+   * Updates timer display immediately on selection
+   * Marks the selected preset as active
+   * 
+   * **Validates: Requirements 18.1, 18.4 - Preset duration selection and immediate display update**
+   * 
+   * @private
+   */
+  initializeTimerPresetButtons() {
+    try {
+      const presetButtons = document.querySelectorAll('.timer-preset-btn');
+      
+      if (presetButtons.length === 0) {
+        console.warn('Timer preset buttons (.timer-preset-btn) not found in DOM');
+        return false;
+      }
+      
+      presetButtons.forEach(button => {
+        button.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          
+          // Get the preset value from data-preset attribute
+          const preset = button.getAttribute('data-preset');
+          
+          // Convert preset to minutes
+          let minutes;
+          switch (preset) {
+            case '15':
+              minutes = 15;
+              break;
+            case 'default':
+            case '25':
+              minutes = 25;
+              break;
+            case '45':
+              minutes = 45;
+              break;
+            default:
+              console.warn('Unknown preset value:', preset);
+              return;
+          }
+          
+          // Update all preset buttons to show active state
+          presetButtons.forEach(btn => {
+            btn.classList.remove('active');
+            btn.removeAttribute('data-active');
+          });
+          
+          // Mark the clicked button as active
+          button.classList.add('active');
+          button.setAttribute('data-active', 'true');
+          
+          // Set the timer duration with the preset identifier
+          TimerComponent.setTimerDuration(minutes, preset);
+        });
+      });
+      
+      // Set initial active state based on saved timer duration
+      this.updateTimerPresetButtonStates();
+      
+      console.log(`✓ Initialized ${presetButtons.length} timer preset buttons`);
+      return true;
+    } catch (error) {
+      console.error('Error initializing timer preset buttons:', error);
+      return false;
+    }
+  },
+
+  /**
+   * Updates the visual active state of timer preset buttons
+   * Marks the button corresponding to the current timer duration as active
+   * Clears all active states if timer preset is 'custom'
+   * Called during initialization and when duration changes
+   * 
+   * @private
+   */
+  updateTimerPresetButtonStates() {
+    try {
+      const presetButtons = document.querySelectorAll('.timer-preset-btn');
+      
+      if (presetButtons.length === 0) {
+        return false;
+      }
+      
+      const currentDuration = AppState.userPreferences.timerDuration || 25;
+      const currentPreset = AppState.userPreferences.timerPreset;
+      
+      // If preset is 'custom', clear all active states
+      if (currentPreset === 'custom') {
+        presetButtons.forEach(button => {
+          button.classList.remove('active');
+          button.removeAttribute('data-active');
+        });
+        return true;
+      }
+      
+      presetButtons.forEach(button => {
+        const preset = button.getAttribute('data-preset');
+        let isActive = false;
+        
+        // Check if this button matches the current duration
+        if (currentDuration === 15 && preset === '15') {
+          isActive = true;
+        } else if (currentDuration === 25 && (preset === 'default' || preset === '25')) {
+          isActive = true;
+        } else if (currentDuration === 45 && preset === '45') {
+          isActive = true;
+        }
+        
+        // Update active state
+        if (isActive) {
+          button.classList.add('active');
+          button.setAttribute('data-active', 'true');
+        } else {
+          button.classList.remove('active');
+          button.removeAttribute('data-active');
+        }
+      });
+      
+      return true;
+    } catch (error) {
+      console.error('Error updating timer preset button states:', error);
+      return false;
+    }
+  },
+
+  /**
+   * Initializes the custom timer duration input handling
+   * Adds input event listener to validate custom duration (1-120 minutes)
+   * Shows error message for invalid input
+   * Retains previous valid duration on error
+   * Updates preset button states to reflect custom selection
+   * 
+   * **Validates: Requirements 18.5, 18.6 - Custom duration validation and error handling**
+   * 
+   * @private
+   */
+  initializeCustomTimerInput() {
+    try {
+      const customTimerInput = document.getElementById('custom-timer');
+      const validationMessage = document.getElementById('timer-validation-message');
+
+      if (!customTimerInput) {
+        console.warn('Custom timer input (#custom-timer) not found in DOM');
+        return false;
+      }
+
+      // Load timer preferences directly from LocalStorage to ensure we have them
+      // (AppState.userPreferences might not be loaded yet at this point in initialization)
+      const savedPreferences = LocalStorageManager.loadPreferences();
+      const currentPreset = savedPreferences.timerPreset;
+      const currentDuration = savedPreferences.timerDuration;
+
+      // Set initial value if a custom duration was previously set
+      if (currentPreset === 'custom') {
+        customTimerInput.value = currentDuration;
+      }
+
+      // Store reference for validation message element
+      this._customTimerValidationMessage = validationMessage;
+
+      customTimerInput.addEventListener('input', (event) => {
+        this.handleCustomTimerInput(event);
+      });
+
+      console.log('✓ Custom timer input initialized');
+      return true;
+    } catch (error) {
+      console.error('Error initializing custom timer input:', error);
+      return false;
+    }
+  },
+
+  /**
+   * Handles input event on custom timer duration field
+   * Validates the input value is between 1-120 minutes
+   * Shows error message for invalid input
+   * Retains previous valid duration on error
+   * Applies valid duration immediately and updates preset button states
+   * 
+   * **Validates: Requirements 18.5, 18.6 - Custom duration validation and error handling**
+   * 
+   * @param {InputEvent} event - The input event from the custom timer field
+   * @private
+   */
+  handleCustomTimerInput(event) {
+    try {
+      const input = event.target;
+      const value = input.value;
+      const validationMessage = this._customTimerValidationMessage;
+
+      // Clear previous validation message
+      if (validationMessage) {
+        validationMessage.textContent = '';
+        validationMessage.className = 'validation-message';
+      }
+
+      // Handle empty input - retain previous valid duration
+      if (value === '' || value === null || value === undefined) {
+        // Don't show error for empty intermediate state
+        return;
+      }
+
+      // Parse the input value
+      const numValue = Number(value);
+
+      // Check for non-numeric input
+      if (isNaN(numValue)) {
+        this._showCustomTimerValidationError('Please enter a valid number', validationMessage);
+        // Revert to previous valid duration
+        this._revertToPreviousValidDuration(input);
+        return;
+      }
+
+      // Check for values below 1
+      if (numValue < 1) {
+        this._showCustomTimerValidationError('Duration must be at least 1 minute', validationMessage);
+        // Revert to previous valid duration
+        this._revertToPreviousValidDuration(input);
+        return;
+      }
+
+      // Check for values above 120
+      if (numValue > 120) {
+        this._showCustomTimerValidationError('Duration cannot exceed 120 minutes', validationMessage);
+        // Revert to previous valid duration
+        this._revertToPreviousValidDuration(input);
+        return;
+      }
+
+      // Valid input - apply the duration
+      const validDuration = Math.round(numValue);
+
+      // Set the timer duration with 'custom' preset
+      // This will update display, save to LocalStorage
+      TimerComponent.setTimerDuration(validDuration, 'custom');
+
+      // Update preset button states to reflect custom selection
+      this.updateTimerPresetButtonStates();
+
+      console.log(`Custom timer duration set to ${validDuration} minutes`);
+    } catch (error) {
+      console.error('Error handling custom timer input:', error);
+    }
+  },
+
+  /**
+   * Shows validation error message for custom timer input
+   * 
+   * @param {string} message - The error message to display
+   * @param {HTMLElement} validationMessageElement - The validation message element
+   * @private
+   */
+  _showCustomTimerValidationError(message, validationMessageElement) {
+    if (validationMessageElement) {
+      validationMessageElement.textContent = message;
+      validationMessageElement.className = 'validation-message error';
+    } else {
+      // Fallback to global error notification
+      showError(message);
+    }
+  },
+
+  /**
+   * Reverts the custom timer input to the previous valid duration
+   * 
+   * @param {HTMLInputElement} input - The custom timer input element
+   * @private
+   */
+  _revertToPreviousValidDuration(input) {
+    const previousDuration = AppState.userPreferences.timerDuration || 25;
+    input.value = previousDuration;
+  },
+
+  /**
+   * Updates preset button states when custom duration is selected
+   * Removes active state from all preset buttons
+   * 
+   * @private
+   */
+  _updatePresetButtonsForCustomSelection() {
+    try {
+      const presetButtons = document.querySelectorAll('.timer-preset-btn');
+
+      // Remove active state from all preset buttons
+      presetButtons.forEach(button => {
+        button.classList.remove('active');
+        button.removeAttribute('data-active');
+      });
+    } catch (error) {
+      console.error('Error updating preset buttons for custom selection:', error);
+    }
+  },
+
+  /**
+   * Initializes the Theme Manager
+      return false;
+    }
+  },
+
+  /**
+   * Initializes the Name Manager
+   * Loads saved name and sets up event listeners for input and blur events
+   * 
+   * **Validates: Requirements 17.3, 17.5**
+   * 
+   * @private
+   */
+  initializeNameManager() {
+    try {
+      // Initialize the NameManager component
+      NameManager.init();
+      
+      console.log('✓ NameManager initialized');
+      return true;
+    } catch (error) {
+      console.error('Error initializing NameManager:', error);
+      return false;
     }
   },
 
@@ -2584,7 +4536,8 @@ const UIController = {
       // Render all tasks from AppState.tasks
       // Applies strikethrough to completed tasks
       // Shows edit mode if a task is being edited
-      renderTaskList();
+      // Sorts tasks according to current sort order
+      renderTaskList(getSortComparison());
       
       // Render all quick links from AppState.quickLinks
       // Shows delete buttons for each link
@@ -2605,6 +4558,7 @@ const UIController = {
    * - Stop the greeting component's update interval
    * - Stop the timer component
    * - Clear any active timers
+   * - Clean up the SettingsPanel component
    */
   destroy() {
     try {
@@ -2621,6 +4575,16 @@ const UIController = {
       } else if (AppState.timer.intervalId !== null) {
         clearInterval(AppState.timer.intervalId);
         AppState.timer.intervalId = null;
+      }
+      
+      // Clean up SettingsPanel
+      if (SettingsPanel && typeof SettingsPanel.cleanup === 'function') {
+        SettingsPanel.cleanup();
+      }
+      
+      // Clean up NameManager
+      if (NameManager && typeof NameManager.cleanup === 'function') {
+        NameManager.cleanup();
       }
       
       console.log('✓ Application cleaned up');
@@ -2856,3 +4820,4 @@ if (document.readyState === 'loading') {
 window.addEventListener('beforeunload', function() {
   UIController.destroy();
 });
+

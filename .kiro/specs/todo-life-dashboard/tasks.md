@@ -1,462 +1,304 @@
-# Implementation Plan: To-Do List Life Dashboard
+# Implementation Plan: To-Do List Life Dashboard Feature Enhancements
 
 ## Overview
 
-This implementation plan breaks down the To-Do List Life Dashboard into discrete, actionable coding tasks. The project uses vanilla HTML, CSS, and JavaScript with a single-file architecture for styles (css/style.css) and scripts (js/script.js). Tasks are organized to build functionality incrementally, validate early through automated tests, and ensure all 29 correctness properties are verified.
+This implementation plan covers the five feature enhancements for the To-Do List Life Dashboard: Light/Dark mode toggle, Custom name in greeting, Customizable Pomodoro timer duration, Duplicate task prevention, and Task sorting. The implementation builds upon the existing codebase and uses vanilla HTML, CSS, and JavaScript. Tasks are organized to build functionality incrementally with early validation through automated tests.
 
 ---
 
 ## Tasks
 
-- [x] 1. Project Structure Setup and HTML Template Creation
-  - Create project directory structure (index.html, css/, js/)
-  - Create index.html with semantic HTML structure for all four sections
-  - Include meta tags for viewport, charset, and accessibility
-  - Add ARIA labels to interactive elements
-  - Reference css/style.css and js/script.js with correct paths
-  - _Requirements: 9.1, 9.2, 9.3, 12.1, 13.1, 14.1_
+- [x] 1. Settings Panel Infrastructure
+  - [x] 1.1 Add settings icon to greeting section in index.html
+    - Insert gear icon (SVG) next to the greeting area
+    - Add aria-label="Settings" for accessibility
+    - Add ID `settings-toggle` for JavaScript targeting
+    - _Requirements: 15.1, 15.2_
 
-- [x] 2. Initialize Global Application State and LocalStorage Manager
-  - [x] 2.1 Create AppState object with initial structure
-    - Initialize tasks, taskCounter, timer state, quickLinks, linkCounter, editingTaskId
-    - _Requirements: 1.1, 2.1, 3.1, 8.1_
+  - [x] 1.2 Create settings panel HTML structure in index.html
+    - Create modal overlay with ID `settings-panel`
+    - Add sections for Name, Theme, and Timer settings
+    - Add close button with aria-label="Close settings"
+    - Add data attributes for sections and controls
+    - _Requirements: 15.2, 15.3, 15.4_
 
-  - [x] 2.2 Implement LocalStorageManager with validation
-    - Write saveTasks() and loadTasks() functions with error handling
-    - Write saveLinks() and loadLinks() functions with error handling
-    - Implement data validation for corrupted entries
-    - _Requirements: 7.1, 7.2, 7.3, 7.4_
+  - [x] 1.3 Style settings panel modal in css/style.css
+    - Create `.settings-panel` class with fixed positioning
+    - Style overlay with semi-transparent backdrop
+    - Add smooth open/close animation transitions
+    - Style panel content with proper spacing and typography
+    - _Requirements: 15.1, 15.2_
 
-  - [ ]* 2.3 Write property tests for LocalStorageManager
-    - **Property 11: Task Persistence Round-Trip**
-    - **Validates: Requirements 7.3**
-    - **Property 25: Quick Link Persistence Round-Trip**
-    - **Validates: Requirements 8.3**
+  - [x] 1.4 Implement settings panel open/close logic in js/script.js
+    - Add click event listener to settings toggle
+    - Add click event listener to close button
+    - Add click event listener to overlay to close
+    - Implement keyboard Escape key to close panel
+    - Add aria-hidden toggling for accessibility
+    - _Requirements: 15.1, 15.6_
 
-- [x] 3. Implement Greeting and Time Display Component
-  - [x] 3.1 Create GreetingComponent with time update logic
-    - Implement getGreeting(hour) function returning appropriate greeting
-    - Implement updateTime() to format date in "Day, Month Date, Year" format
-    - Implement time formatting in 12-hour AM/PM format
-    - Set up 1-second update interval on component initialization
-    - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6_
+- [x] 2. Light / Dark Mode Toggle
+  - [x] 2.1 Add theme toggle section to settings panel HTML
+    - Add label "Theme" with description
+    - Add light mode button with sun icon
+    - Add dark mode button with moon icon
+    - Add data-theme attribute to buttons
+    - _Requirements: 16.1, 16.2_
 
-  - [ ]* 3.2 Write property tests for greeting and time formatting
-    - **Property 1: Date Formatting Produces Valid Day-Month-Year Pattern**
-    - **Validates: Requirements 1.1**
-    - **Property 2: Time Formatting Produces Valid 12-Hour AM/PM Pattern**
-    - **Validates: Requirements 1.2**
-    - **Property 3: Morning Greeting for Early Hours**
-    - **Validates: Requirements 1.3**
-    - **Property 4: Afternoon Greeting for Midday Hours**
-    - **Validates: Requirements 1.4**
-    - **Property 5: Evening Greeting for Late Hours**
-    - **Validates: Requirements 1.5**
+  - [x] 2.2 Define CSS custom properties for both themes in css/style.css
+    - Define `:root` variables for light theme colors
+    - Define `.dark-theme` class for dark theme colors
+    - Variables needed: bg-primary, bg-secondary, text-primary, text-secondary, accent, border, shadow
+    - Add transition property on all color properties (0.3s)
+    - _Requirements: 16.3, 16.4, 21.1, 21.2, 21.3, 21.4_
 
-- [x] 4. Implement Pomodoro Timer Component
-  - [x] 4.1 Create TimerComponent with initialization and state management
-    - Initialize timer to 1500 seconds (25 minutes)
-    - Implement getFormattedTime() to return MM:SS format
-    - Implement start(), stop(), and reset() functions
-    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5_
+  - [x] 2.3 Apply CSS variables throughout existing stylesheet
+    - Replace hardcoded colors with var(--variable-name)
+    - Update greeting section styling
+    - Update timer section styling
+    - Update task list section styling
+    - Update quick links section styling
+    - _Requirements: 21.5, 21.6, 21.7_
 
-  - [ ] 4.2 Implement timer countdown and display updates
-    - Start interval countdown on timer.start()
-    - Decrement timeRemaining each second
-    - Update DOM display in MM:SS format every second
-    - Stop interval and trigger notification when timer reaches 00:00
-    - _Requirements: 2.2, 2.3, 2.4, 2.5, 2.6, 2.7_
+  - [x] 2.4 Implement theme switching logic in js/script.js
+    - Add `setTheme(theme)` function to apply theme class
+    - Add `toggleTheme()` function for button clicks
+    - Add `getCurrentTheme()` function returning 'light' or 'dark'
+    - Update document.body.classList based on theme
+    - _Requirements: 16.3, 16.4_
 
-  - [x] 4.3 Wire timer buttons to event handlers
-    - Connect #timer-start button to start/resume timer
-    - Connect #timer-stop button to pause/resume toggle
-    - Connect #timer-reset button to reset timer to 25:00
-    - Update button states based on timer status
-    - _Requirements: 2.2, 2.3, 2.4, 2.5_
+  - [x] 2.5 Persist theme preference to LocalStorage
+    - Add theme to userPreferences object
+    - Save theme immediately on change
+    - Load theme on application initialization
+    - _Requirements: 16.5, 16.6_
 
-  - [ ]* 4.4 Write property tests for timer functionality
-    - **Property 6: Timer Initializes to 25 Minutes**
-    - **Validates: Requirements 2.1**
-    - **Property 7: Timer Display Formats Correctly in MM:SS**
-    - **Validates: Requirements 2.6**
+  - [~]* 2.6 Write property tests for theme functionality
+    - **Property 1: Theme consistency across components**
+    - **Validates: Requirements 16.3, 16.4**
+    - **Property 2: Theme persistence round-trip**
+    - **Validates: Requirements 16.5, 16.6**
 
-- [x] 5. Implement Task Management - Core Data Layer
-  - [x] 5.1 Implement addTask() with validation
-    - Validate task text: non-empty, non-whitespace, ≤500 characters
-    - Generate unique task ID (task_{timestamp}_{counter})
-    - Create task object with text, completed=false, timestamps
-    - Add to AppState.tasks
-    - Save to LocalStorage
-    - Return boolean success status
-    - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
+- [x] 3. Custom Name in Greeting
+  - [x] 3.1 Add name input section to settings panel HTML
+    - Add label "Your Name" with description
+    - Add input field with placeholder "Enter your name..."
+    - Add ID `user-name-input` for JavaScript targeting
+    - Add character limit indicator (max 50 characters)
+    - _Requirements: 17.1, 17.2_
 
-  - [x] 5.2 Implement updateTask() with field validation
-    - Validate new task text if provided
-    - Update only allowed fields (text, completed)
-    - Update updatedAt timestamp
-    - Save to LocalStorage
-    - Return boolean success status
-    - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5_
+  - [x] 3.2 Style name input section in css/style.css
+    - Style input field with theme-aware background
+    - Add focus state styling with accent color
+    - Style label and description text
+    - _Requirements: 17.1_
 
-  - [x] 5.3 Implement toggleTask() for completion state
-    - Find task by ID
-    - Toggle completed boolean
-    - Update updatedAt timestamp
-    - Save to LocalStorage
-    - Return boolean success status
-    - _Requirements: 5.1, 5.2, 5.3, 5.4_
+  - [x] 3.3 Implement name input handling in js/script.js
+    - Add input event listener to save on change
+    - Add blur event listener to save on focus loss
+    - Implement name sanitization (trim, max 50 chars)
+    - Update greeting display immediately on change
+    - _Requirements: 17.3, 17.5_
 
-  - [x] 5.4 Implement deleteTask() with cleanup
-    - Find task by ID
-    - Remove from AppState.tasks
-    - Save to LocalStorage
-    - Return boolean success status
-    - _Requirements: 6.1, 6.2, 6.3_
+  - [x] 3.4 Modify greeting component to include user name
+    - Update getGreeting() to accept userName parameter
+    - Format greeting as "Good [Period], [Name]!" or just "Good [Period]!"
+    - Handle empty name case (display default greeting)
+    - _Requirements: 17.4, 17.5_
 
-- [x] 6. Implement Task UI Rendering and Event Handling
-  - [x] 6.1 Create renderTaskList() function
-    - Iterate through AppState.tasks
-    - Create task list items with checkbox, text, edit, delete buttons
-    - Add data-task-id attribute for tracking
-    - Apply strikethrough styling to completed tasks
-    - Insert into #task-list DOM element
-    - _Requirements: 3.2, 5.2_
+  - [x] 3.5 Persist user name to LocalStorage
+    - Add userName to userPreferences object
+    - Save name immediately on change
+    - Load name on application initialization
+    - Apply name to greeting on page load
+    - _Requirements: 17.6, 17.7_
 
-  - [x] 6.2 Implement addTaskHandler with input validation
-    - Get text from #task-input
-    - Call addTask() with validation
-    - Clear input field on success
-    - Restore focus to input
-    - Show error message on failure
-    - _Requirements: 3.1, 3.2, 3.3_
+  - [ ]* 3.6 Write property tests for name personalization
+    - **Property 8: Name personalization**
+    - **Validates: Requirements 17.4, 17.7**
 
-  - [x] 6.3 Implement task checkbox toggle handler
-    - Get task ID from event target's closest .task-item
-    - Call toggleTask() with ID
-    - Re-render task list
-    - _Requirements: 5.1, 5.2_
+- [x] 4. Customizable Pomodoro Timer Duration
+  - [x] 4.1 Add timer duration section to settings panel HTML
+    - Add label "Timer Duration" with description
+    - Add preset buttons: 15 min, 25 min (default), 45 min
+    - Add custom duration input field (type number)
+    - Add validation message area for errors
+    - _Requirements: 18.1, 18.2, 18.3_
 
-  - [x] 6.4 Implement task edit mode and save handler
-    - Click edit button: show inline input, hide text, show save/cancel
-    - On save: validate and call updateTask()
-    - On cancel: revert to displaying original text
-    - Re-render task after successful save
-    - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5_
+  - [x] 4.2 Style timer duration section in css/style.css
+    - Style preset buttons with active state
+    - Style custom input field with theme-aware colors
+    - Style validation error message (red text)
+    - _Requirements: 18.1_
 
-  - [x] 6.5 Implement task delete handler
-    - Get task ID from event target's closest .task-item
-    - Call deleteTask() with ID
-    - Re-render task list
-    - Show success feedback
-    - _Requirements: 6.1, 6.2, 6.3_
+  - [x] 4.3 Implement preset duration selection in js/script.js
+    - Add click event listeners to preset buttons
+    - Add data-preset attribute to buttons
+    - Implement setTimerDuration(minutes) function
+    - Update timer display immediately on preset selection
+    - _Requirements: 18.4_
 
-  - [x] 6.6 Wire task input Enter key listener
-    - Listen for keypress on #task-input
-    - Trigger add handler on Enter key (keyCode 13)
-    - _Requirements: 3.1_
+  - [x] 4.4 Implement custom duration input validation
+    - Add input event listener to custom duration field
+    - Validate range: 1-120 minutes
+    - Show error message for invalid input
+    - Retain previous valid duration on error
+    - _Requirements: 18.5, 18.6_
 
+  - [x] 4.5 Update timer component to use custom duration
+    - Modify timer initialization to use saved duration
+    - Update reset button to restore to custom duration
+    - Ensure timer displays new duration immediately
+    - _Requirements: 18.4, 18.5_
 
-- [x] 7. Implement Quick Links Management
-  - [ ] 7.1 Create UrlValidator utility function
-    - Check if URL starts with http:// or https://
-    - Use browser URL constructor for validation
-    - Return boolean result
-    - _Requirements: 8.4_
+  - [x] 4.6 Persist timer duration to LocalStorage
+    - Add timerDuration to userPreferences object
+    - Add timerPreset to track which option selected
+    - Save duration immediately on change
+    - Load and apply duration on initialization
+    - _Requirements: 18.7, 18.8_
 
-  - [ ] 7.2 Implement addLink() with validation
-    - Validate name: non-empty, non-whitespace, 1-100 characters
-    - Validate URL using UrlValidator
-    - Generate unique link ID (link_{timestamp}_{counter})
-    - Create link object with name, url, createdAt
-    - Add to AppState.quickLinks
-    - Save to LocalStorage
-    - Return boolean success status
-    - _Requirements: 8.1, 8.3, 8.4_
+  - [ ]* 4.7 Write property tests for timer duration
+    - **Property 7: Timer duration validation**
+    - **Validates: Requirements 18.5, 18.6, 18.7, 18.8**
 
-  - [ ] 7.3 Implement deleteLink() with cleanup
-    - Find link by ID
-    - Remove from AppState.quickLinks
-    - Save to LocalStorage
-    - Return boolean success status
-    - _Requirements: 8.5_
-
-  - [ ] 7.4 Create renderLinks() function
-    - Iterate through AppState.quickLinks
-    - Create button elements for each link with data-link-id
-    - Add delete button adjacent to each link
-    - Insert into #links-container DOM element
-    - _Requirements: 8.1, 8.6_
-
-  - [ ] 7.5 Implement addLinkHandler with input validation
-    - Get name from #link-name and url from #link-url
-    - Call addLink() with validation
-    - Clear both input fields on success
-    - Restore focus to #link-name
-    - Show error message on failure
-    - _Requirements: 8.1, 8.3_
-
-  - [ ] 7.6 Implement quick link click handler
-    - Get URL from event target's associated link
-    - Open URL in new browser tab
-    - _Requirements: 8.2_
-
-  - [ ] 7.7 Implement delete link handler
-    - Get link ID from event target's closest quick-link element
-    - Call deleteLink() with ID
-    - Re-render links
-    - Show success feedback
-    - _Requirements: 8.5_
-
-  - [ ] 7.8 Wire quick link input Enter key listeners
-    - Listen for keypress on #link-url
-    - Trigger add handler on Enter key (keyCode 13)
-    - _Requirements: 8.1_
-
-- [x] 8. Implement CSS Styling (css/style.css)
-  - [ ] 8.1 Create base styles and layout structure
-    - Set up CSS Grid or Flexbox layout for main container
-    - Define base typography (font families, sizes, line-height)
-    - Set color scheme with primary, secondary, accent colors
-    - Configure whitespace and spacing variables
-    - _Requirements: 9.1, 9.5, 12.1, 12.2, 12.3, 12.5_
-
-  - [ ] 8.2 Style greeting section
-    - Style .greeting-message heading with prominent size
-    - Style .date-time display with readable font
-    - Set color and spacing for time/date elements
-    - _Requirements: 1.1, 9.2_
-
-  - [ ] 8.3 Style timer section
-    - Create large, prominent .timer-display with MM:SS format
-    - Style .timer-controls buttons with clear active states
-    - Style #timer-start, #timer-stop, #timer-reset buttons
-    - Apply different styles for running/paused/stopped states
-    - _Requirements: 2.6, 9.2, 9.3_
-
-  - [ ] 8.4 Style task list section
-    - Style .task-list as vertically stacked items
-    - Create .task-item styling with checkbox, text, buttons
-    - Apply strikethrough style to completed tasks
-    - Style edit mode inline input
-    - Style task buttons (edit, delete) with clear affordance
-    - _Requirements: 5.2, 9.2, 9.3_
-
-  - [ ] 8.5 Style quick links section
-    - Create grid or flexbox layout for quick link buttons
-    - Style .quick-link-btn with clear, clickable appearance
-    - Add hover state to indicate interactivity
-    - Style delete buttons for quick links
-    - _Requirements: 8.1, 8.2, 9.2, 9.3_
-
-  - [ ] 8.6 Implement responsive design for tablet/mobile
-    - Use media queries for tablet and mobile breakpoints
-    - Adjust grid/flex layouts for smaller screens
-    - Ensure touch-friendly button sizes (≥44x44px)
-    - Stack sections vertically on mobile
-    - _Requirements: 11.5_
-
-  - [ ] 8.7 Implement color contrast and accessibility styles
-    - Ensure text has 4.5:1 contrast ratio (WCAG AA)
-    - Add clear focus indicators for keyboard navigation
-    - Style error and success notifications
-    - _Requirements: 12.4_
-
-  - [ ] 8.8 Create utility classes and finalize styles
-    - Add .btn, .btn-primary, .btn-secondary button styles
-    - Create .error-notification and .success-notification styles
-    - Add utility classes for common patterns
-    - Ensure total file size < 15KB
-    - _Requirements: 9.4, 10.5_
-
-- [x] 9. Wire UIController Orchestrator
-  - [x] 9.1 Create UIController initialization function
-    - Call init() on each component (Greeting, Timer, Task, QuickLinks)
-    - Check for required DOM elements
-    - Load data from LocalStorage
-    - Call renderAll() to display initial UI
-    - Set up global error handler
-    - _Requirements: 1.1, 2.1, 3.1, 8.1_
-
-  - [x] 9.2 Implement event delegation setup in UIController
-    - Add click listeners to document for task operations
-    - Add click listeners to document for quick link operations
-    - Add click listeners for timer buttons
-    - Add click listener for task add button
-    - Add click listener for link add button
-    - _Requirements: 3.1, 4.1, 5.1, 6.1, 8.1_
-
-  - [x] 9.3 Implement renderAll() method
-    - Call renderTaskList()
-    - Call renderLinks()
-    - Call updateGreeting and updateTime()
-    - Call updateTimerDisplay()
-    - _Requirements: 1.1, 2.6, 3.2, 8.1_
-
-  - [x] 9.4 Implement error handling and user notifications
-    - Create showError() function for error display (5s timeout)
-    - Create showSuccess() function for success display (3s timeout)
-    - Wire error handler to catch and display exceptions
-    - _Requirements: 3.3, 4.5, 7.4_
-
-  - [x] 9.5 Implement timer cleanup on page unload
-    - Add beforeunload listener to clearInterval() on timer
-    - Prevent memory leaks from running timer intervals
-    - _Requirements: 2.3_
-
-- [x] 10. Implement Error Handling and Resilience
-  - [x] 10.1 Add try-catch for LocalStorage operations
-    - Wrap all localStorage.getItem() calls
-    - Handle QuotaExceededError with user notification
-    - Handle JSON.parse() errors with data reset
-    - Attempt to recover by removing oldest completed tasks
-    - _Requirements: 7.4_
-
-  - [x] 10.2 Implement corrupted data detection and recovery
-    - Validate task objects on load (check all required fields)
-    - Validate quick link objects on load
-    - Filter out invalid entries and re-save cleaned data
-    - _Requirements: 7.4_
-
-  - [x] 10.3 Add null/undefined checks throughout
-    - Check for missing DOM elements before manipulation
-    - Check for null task/link IDs before operations
-    - Return early with error messages for invalid states
-    - _Requirements: 3.3, 4.5, 8.5_
-
-  - [x] 10.4 Implement timeout handling for long operations
-    - Monitor addTask/updateTask/deleteTask performance
-    - Ensure all operations complete within 100ms
-    - _Requirements: 10.4_
-
-- [ ] 11. Checkpoint - Core Functionality Complete
-  - All core features implemented and wired
+- [x] 5. Checkpoint - Settings and Theme Features
+  - Ensure settings panel opens and closes correctly
+  - Verify theme toggles and persists across page reload
+  - Verify name updates greeting immediately
+  - Verify timer duration changes work correctly
   - Ensure all tests pass, ask the user if questions arise.
-  - _Requirements: 1.1-1.6, 2.1-2.7, 3.1-3.5, 4.1-4.5, 5.1-5.4, 6.1-6.3, 7.1-7.4, 8.1-8.6_
+  - _Requirements: 15.5, 15.6, 16.5, 16.6, 17.6, 17.7, 18.7, 18.8_
 
-- [x] 12. Cross-Browser Compatibility Testing
-  - [ ] 12.1 Test in Chrome (latest)
-    - Verify all features work correctly
-    - Check LocalStorage persistence
-    - Test timer countdown accuracy
-    - _Requirements: 11.1_
+- [x] 6. Prevent Duplicate Tasks
+  - [x] 6.1 Add duplicate task check to addTask() function
+    - Implement isDuplicateTask(taskText) helper function
+    - Normalize comparison: trim and lowercase both texts
+    - Check against all existing AppState.tasks
+    - Return true if duplicate exists, false otherwise
+    - _Requirements: 19.1, 19.2_
 
-  - [x] 12.2 Test in Firefox (latest)
-    - Verify all features work correctly
-    - Check LocalStorage persistence
-    - Test timer countdown accuracy
-    - _Requirements: 11.2_
+  - [x] 6.2 Implement duplicate prevention in addTask flow
+    - Call isDuplicateTask before creating new task
+    - If duplicate, return false without modifying state
+    - Call showError() with message "This task already exists"
+    - If not duplicate, proceed with normal addTask logic
+    - _Requirements: 19.3, 19.4_
 
-  - [ ] 12.3 Test in Edge (latest)
-    - Verify all features work correctly
-    - Check LocalStorage persistence
-    - Test timer countdown accuracy
-    - _Requirements: 11.3_
+  - [x] 6.3 Ensure existing task remains unchanged on duplicate attempt
+    - Verify task list not modified when duplicate detected
+    - Verify no LocalStorage save occurs for duplicate
+    - Verify error notification displays without list change
+    - _Requirements: 19.5, 19.6_
 
-  - [ ] 12.4 Test in Safari (latest)
-    - Verify all features work correctly
-    - Check LocalStorage persistence
-    - Test timer countdown accuracy
-    - _Requirements: 11.4_
+  - [ ]* 6.4 Write property tests for duplicate prevention
+    - **Property 4: Duplicate task prevention**
+    - **Validates: Requirements 19.1, 19.2, 19.3, 19.4**
 
-  - [ ] 12.5 Test responsive design on tablet and mobile
-    - Verify layout adapts correctly at breakpoints
-    - Test touch interactions on mobile devices
-    - Check button sizes are touch-friendly
-    - _Requirements: 11.5_
+- [x] 7. Sort Tasks
+  - [x] 7.1 Add sort dropdown to task list section in index.html
+    - Add label "Sort by:" before dropdown
+    - Add select element with ID `sort-select`
+    - Add options: Newest First, Oldest First, Name (A-Z), Name (Z-A), Completion Status
+    - Add data attributes for sort order values
+    - _Requirements: 20.1, 20.2_
 
-- [x] 13. Write Comprehensive Unit and Integration Tests
-  - [ ] 13.1 Write unit tests for validation functions
-    - Test validateURL() with valid/invalid formats
-    - Test task text validation (empty, whitespace, length)
-    - Test link name validation
-    - _Requirements: 3.3, 4.5, 8.4_
+  - [x] 7.2 Style sort dropdown section in css/style.css
+    - Style label with theme-aware colors
+    - Style select element with padding and borders
+    - Style dropdown options
+    - Position above task list with margin
+    - _Requirements: 20.1_
 
-  - [ ] 13.2 Write integration tests for complete workflows
-    - Test full task workflow: add → edit → complete → delete
-    - Test timer workflow: start → pause → resume → stop → reset
-    - Test quick link workflow: add → click → open (mock window.open)
-    - Test data persistence: add → reload page → verify restoration
-    - _Requirements: 7.1, 7.2, 7.3_
+  - [x] 7.3 Implement SortOrder enum and comparison functions
+    - Define SortOrder.NEWEST, OLDEST, NAME_ASC, NAME_DESC, COMPLETION
+    - Implement getSortComparison() returning comparison function
+    - Handle each sort type's logic:
+      - Newest: compare createdAt descending
+      - Oldest: compare createdAt ascending
+      - Name A-Z: localeCompare ascending
+      - Name Z-A: localeCompare descending
+      - Completion: incomplete first, then createdAt
+    - _Requirements: 20.3, 20.6_
 
+  - [x] 7.4 Implement sort functionality in js/script.js
+    - Add change event listener to sort dropdown
+    - Update AppState.userPreferences.sortOrder
+    - Call renderTaskList() immediately on change
+    - Pass sort comparison function to render
+    - _Requirements: 20.3, 20.6_
 
-- [ ] 14. Performance Optimization
-  - [ ] 14.1 Optimize DOM queries with caching
-    - Cache frequently accessed DOM elements
-    - Minimize querySelector() calls during runtime
-    - _Requirements: 10.2, 10.3, 10.4_
+  - [x] 7.5 Persist sort preference to LocalStorage
+    - Add sortOrder to userPreferences object
+    - Save sortOrder immediately on change
+    - Load sortOrder on application initialization
+    - Apply saved sort to dropdown selection
+    - _Requirements: 20.4, 20.5_
 
-  - [ ] 14.2 Implement efficient event delegation
-    - Use event delegation for dynamically added tasks
-    - Reduce number of event listeners on page
-    - _Requirements: 10.2, 10.3_
+  - [x] 7.6 Ensure new tasks insert in correct sorted position
+    - When adding new task, render with current sort applied
+    - New task appears in correct position per sort order
+    - Test each sort mode with new task addition
+    - _Requirements: 20.6_
 
-  - [ ] 14.3 Optimize LocalStorage operations
-    - Batch multiple updates before saving
-    - Avoid redundant save operations
-    - _Requirements: 10.4_
+  - [ ]* 7.7 Write property tests for task sorting
+    - **Property 5: Sort order consistency**
+    - **Validates: Requirements 20.3, 20.6**
+    - **Property 6: Sort preference persistence**
+    - **Validates: Requirements 20.4, 20.5**
 
-  - [ ] 14.4 Measure and verify performance metrics
-    - Initial load time < 2 seconds
-    - Task operations complete within 300ms
-    - Timer updates smooth at 60fps
-    - No memory leaks over extended sessions
-    - _Requirements: 10.1, 10.2, 10.3, 10.4_
+- [x] 8. Unified Settings Persistence System
+  - [x] 8.1 Create unified settings LocalStorage key
+    - Define StorageKeys.SETTINGS = 'dashboard_settings'
+    - Create settings object with all preferences
+    - _Requirements: 15.5, 15.6_
 
-- [ ] 15. Accessibility Compliance Verification
-  - [ ] 15.1 Verify ARIA labels and semantic HTML
-    - All interactive elements have descriptive ARIA labels
-    - HTML uses semantic elements (button, section, input)
-    - Headings follow proper nesting (h1, h2, h3)
-    - _Requirements: 9.3_
+  - [x] 8.2 Implement settings validation schema
+    - Define SettingsSchema with validation functions
+    - userName: string, max 50 chars, trim whitespace
+    - theme: 'light' or 'dark'
+    - sortOrder: valid SortOrder value
+    - timerDuration: number 1-120
+    - _Requirements: 15.5_
 
-  - [ ] 15.2 Verify keyboard navigation
-    - All features accessible via keyboard (Tab, Enter, etc.)
-    - Focus indicators visible and clear
-    - Tab order logical and predictable
-    - _Requirements: 12.1_
+  - [x] 8.3 Implement unified saveSettings() function
+    - Save all preferences in single LocalStorage call
+    - Validate data before saving
+    - Handle storage errors gracefully
+    - _Requirements: 15.5, 15.6_
 
-  - [ ] 15.3 Verify color contrast and readability
-    - Text meets WCAG AA standards (4.5:1 minimum)
-    - Font sizes readable (minimum 14px body)
-    - Line spacing adequate (1.5x or greater)
-    - _Requirements: 12.2, 12.3, 12.4, 12.5_
+  - [x] 8.4 Implement unified loadSettings() function
+    - Load settings from LocalStorage
+    - Apply defaults if no saved settings
+    - Validate and normalize loaded settings
+    - _Requirements: 15.5, 15.6_
 
-- [ ] 16. Final Integration and End-to-End Testing
-  - [ ] 16.1 Create index.html test file for manual verification
-    - Open index.html in browser
-    - Test all features end-to-end
-    - Verify visual layout matches design
-    - Check responsive design on multiple screen sizes
-    - _Requirements: 9.1, 9.2, 11.1, 11.2, 11.3, 11.4, 11.5_
+  - [ ]* 8.5 Write property tests for settings persistence
+    - **Property 3: Settings immediate application**
+    - **Validates: Requirements 15.5, 15.6**
+    - **Property 9: Settings initialization**
+    - **Validates: Requirements 15.5, 16.5, 18.7, 20.4**
 
-  - [ ] 16.2 Verify all user stories are satisfied
-    - Greeting display shows correct time and greeting
-    - Timer starts, pauses, resumes, resets correctly
-    - Tasks can be added, edited, completed, deleted
-    - Quick links can be added, deleted, opened
-    - Data persists across page reloads
-    - _Requirements: 1.1, 2.1, 3.1, 4.1, 5.1, 6.1, 7.1, 8.1_
-
-- [ ] 17. Final Checkpoint - All Tests Pass and Features Verified
-  - All property tests pass (29 correctness properties verified)
-  - All unit and integration tests pass
-  - Cross-browser compatibility verified
-  - Performance metrics within targets
-  - Accessibility compliance confirmed
+- [x] 9. Final Checkpoint - All Enhancements Complete
+  - Verify all settings persist and apply correctly
+  - Verify theme toggles work smoothly
+  - Verify duplicate prevention prevents same tasks
+  - Verify sorting works for all options
   - Ensure all tests pass, ask the user if questions arise.
+  - _Requirements: 15.5, 15.6, 16.5, 16.6, 17.6, 17.7, 18.7, 18.8, 19.4, 20.5, 20.6_
 
 ---
 
 ## Notes
 
-- Tasks marked with `*` are optional and can be skipped for faster MVP
+- Tasks marked with `*` are optional property-based tests that can be skipped for faster MVP
 - Each task references specific requirements for traceability
 - Property tests validate universal correctness properties from the design document
-- All 29 correctness properties have corresponding test tasks
-- Checkpoints at strategic points allow validation of incremental progress
-- Core implementation tasks (non-optional) ensure all requirements are met
-- Testing tasks are co-located with implementation to catch errors early
-- Single-file architecture (css/style.css, js/script.js) keeps project simple
+- Settings panel provides centralized control for all user preferences
+- Theme changes use CSS variables for instant, smooth transitions
+- Duplicate prevention is case-insensitive and preserves existing tasks
+- Sorting is applied immediately and persists across sessions
+- Checkpoints ensure incremental validation before proceeding
 
 ---
 
@@ -465,22 +307,16 @@ This implementation plan breaks down the To-Do List Life Dashboard into discrete
 ```json
 {
   "waves": [
-    { "id": 0, "tasks": ["1.1", "2.1", "2.2"] },
-    { "id": 1, "tasks": ["2.3", "3.1"] },
-    { "id": 2, "tasks": ["3.2", "4.1", "4.2"] },
-    { "id": 3, "tasks": ["4.3", "4.4", "5.1", "5.2"] },
-    { "id": 4, "tasks": ["5.3", "5.4", "5.5", "6.1"] },
-    { "id": 5, "tasks": ["6.2", "6.3", "6.4", "6.5", "6.6", "6.7"] },
-    { "id": 6, "tasks": ["7.1", "7.2", "7.3", "7.4", "7.5"] },
-    { "id": 7, "tasks": ["7.6", "7.7", "7.8", "7.9", "8.1"] },
-    { "id": 8, "tasks": ["8.2", "8.3", "8.4", "8.5", "8.6", "8.7", "8.8"] },
-    { "id": 9, "tasks": ["9.1", "9.2", "9.3", "9.4", "9.5"] },
-    { "id": 10, "tasks": ["10.1", "10.2", "10.3", "10.4"] },
-    { "id": 11, "tasks": ["12.1", "12.2", "12.3", "12.4", "12.5"] },
-    { "id": 12, "tasks": ["13.1", "13.2", "13.3", "14.1", "14.2", "14.3", "14.4"] },
-    { "id": 13, "tasks": ["15.1", "15.2", "15.3"] },
-    { "id": 14, "tasks": ["16.1", "16.2"] }
+    { "id": 0, "tasks": ["1.1", "1.2", "1.3"] },
+    { "id": 1, "tasks": ["1.4", "2.1", "3.1", "4.1", "7.1"] },
+    { "id": 2, "tasks": ["2.2", "2.3", "2.4", "3.2", "4.2", "7.2"] },
+    { "id": 3, "tasks": ["2.5", "3.3", "4.3", "7.3", "8.1", "8.2"] },
+    { "id": 4, "tasks": ["2.6", "3.4", "4.4", "7.4", "8.3", "8.4"] },
+    { "id": 5, "tasks": ["3.5", "4.5", "4.6", "7.5", "8.5"] },
+    { "id": 6, "tasks": ["5"] },
+    { "id": 7, "tasks": ["6.1", "6.2", "6.3", "6.4"] },
+    { "id": 8, "tasks": ["7.6", "7.7"] },
+    { "id": 9, "tasks": ["9"] }
   ]
 }
 ```
-

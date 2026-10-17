@@ -1,1459 +1,473 @@
-# Design Document: To-Do List Life Dashboard
+# Design Document: To-Do List Life Dashboard Feature Enhancements
+
+## Introduction
+
+This design document outlines the architectural approach and implementation details for the feature enhancements to the To-Do List Life Dashboard. The enhancements include a settings panel with user preferences, light/dark mode theming, customizable Pomodoro timer duration, duplicate task prevention, and task sorting functionality. The application is built using HTML, CSS, and Vanilla JavaScript with a single CSS file and single JavaScript file structure.
 
 ## Overview
 
-The To-Do List Life Dashboard is a single-page web application built with vanilla HTML, CSS, and JavaScript that provides a unified interface for daily productivity management. The application combines four primary features: time/date display with time-based greetings, a Pomodoro timer, task management (CRUD operations), and quick link bookmarks. All data persists locally in the browser's LocalStorage API, enabling a seamless experience across sessions without requiring a backend server.
+The To-Do List Life Dashboard is a personal productivity web application that serves as a central hub for daily planning and productivity. The feature enhancements extend the existing application with user customization capabilities while maintaining the simplicity and performance characteristics that define the current implementation.
 
-### Design Principles
+The enhanced dashboard provides users with the ability to personalize their experience through a settings panel that controls theme appearance, greeting personalization, and timer configuration. The duplicate prevention system ensures task lists remain clean and meaningful by detecting and preventing redundant entries. The task sorting feature allows users to organize their tasks according to various criteria including creation date, alphabetical order, and completion status.
 
-- **Simplicity First**: Single-file architecture for both styles and scripts to minimize complexity
-- **Performance-Oriented**: Vanilla JavaScript with optimized DOM manipulation and efficient event handling
-- **Resilient**: Comprehensive error handling for corrupted data and storage failures
-- **User-Centric**: Responsive layout that works across all modern browsers and screen sizes
-- **Offline-Ready**: Complete application functionality without external dependencies or network calls
-
----
+All enhancements are implemented using Vanilla JavaScript with no external dependencies. The styling architecture uses CSS custom properties to enable efficient theme switching. Data persistence leverages the browser's LocalStorage API with enhanced schema validation to ensure data integrity across sessions.
 
 ## Architecture
 
-### High-Level System Structure
+### Component-Based Architecture
 
-```
-┌─────────────────────────────────────────────────────┐
-│           To-Do List Life Dashboard                 │
-│                                                     │
-│  ┌─────────────────────────────────────────────┐   │
-│  │  Presentation Layer (DOM)                   │   │
-│  │  ├─ Greeting Section                        │   │
-│  │  ├─ Timer Section                           │   │
-│  │  ├─ Task List Section                       │   │
-│  │  └─ Quick Links Section                     │   │
-│  └─────────────────────────────────────────────┘   │
-│                      ↕                              │
-│  ┌─────────────────────────────────────────────┐   │
-│  │  Application Logic Layer (JavaScript)       │   │
-│  │  ├─ State Manager                           │   │
-│  │  ├─ Timer Manager                           │   │
-│  │  ├─ Task Manager                            │   │
-│  │  ├─ Quick Link Manager                      │   │
-│  │  └─ UI Controller                           │   │
-│  └─────────────────────────────────────────────┘   │
-│                      ↕                              │
-│  ┌─────────────────────────────────────────────┐   │
-│  │  Data Persistence Layer                     │   │
-│  │  └─ LocalStorage API                        │   │
-│  └─────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────┘
-```
+The enhanced dashboard follows a component-based architecture where each major feature is encapsulated within a dedicated module. This approach promotes separation of concerns, maintainability, and testability. The application consists of the following core components:
 
-### Architectural Layers
+1. **GreetingComponent**: Manages time-based greeting, date/time display, and user name personalization
+2. **TimerComponent**: Handles Pomodoro timer functionality with configurable duration
+3. **TaskManager**: Core task CRUD operations with duplicate detection and sorting
+4. **SettingsManager**: Manages user preferences including theme, name, and timer settings
+5. **QuickLinksComponent**: Manages quick link buttons for favorite websites
+6. **LocalStorageManager**: Handles data persistence and schema management
 
-1. **Presentation Layer (DOM)**: HTML structure organized into semantic sections with CSS styling
-2. **Application Logic Layer**: Pure JavaScript functions managing state, timer, tasks, and links
-3. **Data Persistence Layer**: LocalStorage wrapper with validation and error handling
+### State Management Pattern
 
----
+The application employs a centralized state management pattern using the `AppState` object. This single source of truth holds all application data and is synchronized with LocalStorage for persistence. State changes trigger UI updates through reactive rendering functions. The state is structured to separate transient UI state from persistent data, ensuring that non-persistent values like timer running state do not affect stored preferences.
 
-## Data Models
+### Data Flow
 
-### LocalStorage Schema
-
-All data is stored as JSON strings in LocalStorage under two primary keys:
-
-#### 1. Tasks Store (`dashboard_tasks`)
-
-```json
-{
-  "tasks": [
-    {
-      "id": "task_1729972800000_1",
-      "text": "Complete project proposal",
-      "completed": false,
-      "createdAt": 1729972800000,
-      "updatedAt": 1729972800000
-    },
-    {
-      "id": "task_1729972801000_2",
-      "text": "Review meeting notes",
-      "completed": true,
-      "createdAt": 1729972801000,
-      "updatedAt": 1729973400000
-    }
-  ]
-}
-```
-
-**Schema Details:**
-- `id`: Unique identifier (format: `task_{timestamp}_{counter}`)
-- `text`: Task description (string, max 500 characters)
-- `completed`: Boolean flag for completion state
-- `createdAt`: Timestamp of task creation (milliseconds since epoch)
-- `updatedAt`: Timestamp of last modification
-
-#### 2. Quick Links Store (`dashboard_quick_links`)
-
-```json
-{
-  "links": [
-    {
-      "id": "link_1729972800000_1",
-      "name": "GitHub",
-      "url": "https://github.com",
-      "createdAt": 1729972800000
-    },
-    {
-      "id": "link_1729972801000_2",
-      "name": "MDN Docs",
-      "url": "https://developer.mozilla.org",
-      "createdAt": 1729972801000
-    }
-  ]
-}
-```
-
-**Schema Details:**
-- `id`: Unique identifier (format: `link_{timestamp}_{counter}`)
-- `name`: Display name for the link (string, max 100 characters)
-- `url`: Full URL to the website (validated format with http/https)
-- `createdAt`: Timestamp of link creation
-
-#### 3. Timer State (Transient - Not Persisted)
-
-Timer state is maintained in memory during the session. A 25-minute countdown is recalculated on each page load.
-
-```javascript
-{
-  "timeRemaining": 1500,  // seconds (25 * 60)
-  "isRunning": false,
-  "isPaused": false
-}
-```
-
-### Data Validation Rules
-
-**Task Validation:**
-- Text must be non-empty and non-whitespace-only
-- Text must not exceed 500 characters
-- ID must follow the pattern `task_{timestamp}_{counter}`
-
-**Quick Link Validation:**
-- Name must be 1-100 characters
-- URL must start with `http://` or `https://`
-- URL must be properly formatted (basic URL validation regex)
-- Name cannot be empty or whitespace-only
-
-**Timer Validation:**
-- Time remaining must be non-negative integer
-- Time remaining cannot exceed 1500 seconds (25 minutes)
-- Timer state flags must be boolean
-
----
+User interactions trigger events that flow through the following pattern: User Input → Event Handler → State Update → LocalStorage Sync → UI Render. This unidirectional data flow ensures consistency between the UI and underlying data. Each component listens for state changes and updates its respective DOM elements accordingly. The LocalStorageManager serves as the bridge between application state and browser storage, handling serialization, validation, and error recovery.
 
 ## Components and Interfaces
 
-### Component Hierarchy
+### Settings Panel Component
 
-The application is organized into four main UI components, each with a clear responsibility and public interface:
+The settings panel is implemented as a modal overlay that appears when the user clicks the gear icon. The gear icon is positioned next to the greeting section and uses an inline SVG icon for visual clarity. The panel contains organized sections for each preference category with clear labels and input controls. The modal backdrop dims the background content to focus user attention on the settings.
 
-#### 1. GreetingComponent
-**Responsibility**: Display time-based greeting, current date, and current time
+**Interface Methods:**
+- `openSettings()`: Displays the settings panel with animation
+- `closeSettings()`: Hides the settings panel and saves current state
+- `applySetting(settingName, value)`: Applies a setting change immediately
 
-**Public Interface**:
-```javascript
-{
-  init(): void,
-  render(): void,
-  updateTime(): void,
-  getGreeting(hour: number): string,
-  stop(): void
-}
-```
+### Theme Toggle Component
 
-**Dependencies**: None (pure DOM updates)
+The theme toggle uses button elements rather than a checkbox for better accessibility and clearer visual feedback. Active state is indicated through CSS classes and icon styling. The sun icon represents light mode, while the moon icon represents dark mode. When a theme is selected, it is visually highlighted and the corresponding icon receives emphasis.
 
-**Data Source**: JavaScript Date API (read-only)
+**Interface Methods:**
+- `setTheme(theme)`: Applies the specified theme ('light' or 'dark')
+- `toggleTheme()`: Switches between light and dark themes
+- `getCurrentTheme()`: Returns the currently active theme
 
-#### 2. TimerComponent
-**Responsibility**: Manage Pomodoro timer state and display
+### Sort Control Component
 
-**Public Interface**:
-```javascript
-{
-  init(): void,
-  start(): void,
-  stop(): void,
-  reset(): void,
-  render(): void,
-  getFormattedTime(): string,
-  isRunning(): boolean,
-  isPaused(): boolean,
-  cleanup(): void
-}
-```
+The sort dropdown is positioned above the task list with a label and select element. The dropdown contains all five sort options with descriptive labels. The currently selected sort option is marked in the UI and persisted to LocalStorage. When the user changes the sort order, the task list immediately re-renders in the new order.
 
-**Dependencies**: None
+**Interface Methods:**
+- `setSortOrder(order)`: Applies the specified sort order
+- `getSortOrder()`: Returns the current sort order
+- `getSortComparison()`: Returns the comparison function for the current order
 
-**Data Source**: AppState.timer
+### Settings Persistence Component
 
-#### 3. TaskComponent
-**Responsibility**: Manage task CRUD operations, rendering, and persistence
+The LocalStorageManager provides a unified interface for settings persistence. All settings are validated against a schema before storage, ensuring data integrity. Settings are immediately persisted upon change to prevent data loss.
 
-**Public Interface**:
-```javascript
-{
-  init(): void,
-  addTask(text: string): boolean,
-  updateTask(id: string, updates: object): boolean,
-  deleteTask(id: string): boolean,
-  toggleTask(id: string): boolean,
-  getTask(id: string): Task | null,
-  getAllTasks(): Task[],
-  renderList(): void,
-  getEditingTaskId(): string | null,
-  setEditingTaskId(id: string | null): void,
-  cleanup(): void
-}
-```
+**Interface Methods:**
+- `saveSettings(settings)`: Persists settings to LocalStorage
+- `loadSettings()`: Retrieves and validates settings from LocalStorage
+- `getDefaultSettings()`: Returns default settings values
 
-**Dependencies**: LocalStorageManager
+## Data Models
 
-**Data Source**: AppState.tasks, LocalStorage (dashboard_tasks)
+### User Preferences Schema
 
-#### 4. QuickLinksComponent
-**Responsibility**: Manage quick links CRUD operations and display
-
-**Public Interface**:
-```javascript
-{
-  init(): void,
-  addLink(name: string, url: string): boolean,
-  deleteLink(id: string): boolean,
-  getAllLinks(): QuickLink[],
-  render(): void,
-  openLink(id: string): void,
-  cleanup(): void
-}
-```
-
-**Dependencies**: LocalStorageManager, UrlValidator
-
-**Data Source**: AppState.quickLinks, LocalStorage (dashboard_quick_links)
-
-#### 5. LocalStorageManager
-**Responsibility**: Centralized data persistence with validation and error handling
-
-**Public Interface**:
-```javascript
-{
-  saveTasks(tasks: Task[]): boolean,
-  loadTasks(): Task[],
-  saveLinks(links: QuickLink[]): boolean,
-  loadLinks(): QuickLink[],
-  clear(key: string): void,
-  isAvailable(): boolean,
-  getStorageInfo(): { used: number, limit: number }
-}
-```
-
-**Dependencies**: None (wrapper around browser LocalStorage API)
-
-**Data Source**: Browser LocalStorage
-
-#### 6. UIController (Orchestrator)
-**Responsibility**: Coordinate all components, manage event routing
-
-**Public Interface**:
-```javascript
-{
-  init(): boolean,
-  renderAll(): void,
-  destroy(): void,
-  handleError(error: Error): void
-}
-```
-
-**Dependencies**: GreetingComponent, TimerComponent, TaskComponent, QuickLinksComponent
-
-### Component Communication
-
-```
-UIController (main orchestrator)
-    ├─ GreetingComponent
-    ├─ TimerComponent
-    ├─ TaskComponent
-    │   └─ LocalStorageManager
-    │       └─ UrlValidator
-    └─ QuickLinksComponent
-        └─ LocalStorageManager
-            └─ UrlValidator
-```
-
-**Communication Pattern**: All communication flows through UIController. Components do not directly reference each other (loose coupling).
-
----
-
-## UI Components and Layout
-
-### HTML Structure
-
-The application uses semantic HTML with ARIA attributes for accessibility:
-
-```html
-<body>
-  <div class="container">
-    <!-- Greeting Section -->
-    <section class="greeting-section">
-      <h1 class="greeting-message"></h1>
-      <div class="date-time">
-        <p class="date"></p>
-        <p class="time"></p>
-      </div>
-    </section>
-
-    <!-- Timer Section -->
-    <section class="timer-section">
-      <div class="timer-display">
-        <h2 class="timer-text">25:00</h2>
-      </div>
-      <div class="timer-controls">
-        <button id="timer-start" class="btn btn-primary">Start</button>
-        <button id="timer-stop" class="btn btn-secondary">Stop</button>
-        <button id="timer-reset" class="btn btn-secondary">Reset</button>
-      </div>
-    </section>
-
-    <!-- Task List Section -->
-    <section class="task-section">
-      <h2>To-Do List</h2>
-      <div class="task-input-group">
-        <input 
-          type="text" 
-          id="task-input" 
-          placeholder="Add a new task..."
-          class="task-input"
-          aria-label="Task input field"
-        >
-        <button id="task-add" class="btn btn-primary">Add</button>
-      </div>
-      <ul id="task-list" class="task-list"></ul>
-    </section>
-
-    <!-- Quick Links Section -->
-    <section class="quick-links-section">
-      <h2>Quick Links</h2>
-      <div class="link-input-group">
-        <input 
-          type="text" 
-          id="link-name" 
-          placeholder="Link name..."
-          class="link-input"
-          aria-label="Quick link name"
-        >
-        <input 
-          type="text" 
-          id="link-url" 
-          placeholder="https://example.com"
-          class="link-input"
-          aria-label="Quick link URL"
-        >
-        <button id="link-add" class="btn btn-primary">Add Link</button>
-      </div>
-      <div id="links-container" class="links-container"></div>
-    </section>
-  </div>
-</body>
-```
-
-### Component Details
-
-#### 1. Greeting Section
-- **Greeting Message**: H1 element updated based on current hour
-- **Date Display**: Formatted as "Tuesday, October 26, 2024"
-- **Time Display**: Formatted as "10:30 AM" (12-hour format)
-- Update frequency: Every second via clock update interval
-
-#### 2. Timer Section
-- **Display**: Large, readable timer showing MM:SS format
-- **Controls**: Start (toggles to Resume when paused), Stop (toggles to Pause when running), Reset
-- **Visual Feedback**: Button states change to reflect timer status
-- Update frequency: Every second during countdown
-
-#### 3. Task List Section
-- **Input Field**: Text input for new task entry
-- **Add Button**: Creates new task if input is valid
-- **Task Items**: Dynamic list of tasks rendered as:
-  ```html
-  <li class="task-item" data-task-id="task_1729972800000_1">
-    <input type="checkbox" class="task-checkbox" aria-label="Mark task as complete">
-    <span class="task-text">Complete project proposal</span>
-    <button class="task-edit">Edit</button>
-    <button class="task-delete">Delete</button>
-  </li>
-  ```
-- Edit mode: Task text becomes editable inline with Save/Cancel options
-
-#### 4. Quick Links Section
-- **Input Fields**: Name and URL inputs for new link
-- **Add Link Button**: Creates new link if both fields are valid
-- **Link Buttons**: Dynamically rendered as:
-  ```html
-  <button class="quick-link-btn" data-link-id="link_1729972800000_1">
-    GitHub
-  </button>
-  ```
-- **Delete Buttons**: Small icon or text button to remove link
-
----
-
-## State Management
-
-### Application State Structure
+The `userPreferences` object contains all settings that persist across sessions. Each preference has a defined type and validation constraints. The theme property controls the CSS custom property values applied to the document. The sortOrder property determines the algorithm used when rendering the task list. The timerDuration property stores the user's preferred Pomodoro timer length in minutes.
 
 ```javascript
 const AppState = {
-  // Task state
+  // Task state (existing)
   tasks: [],
   taskCounter: 0,
 
-  // Timer state (transient)
+  // Timer state (transient, not persisted)
   timer: {
-    timeRemaining: 1500,      // seconds
+    timeRemaining: 1500,
     isRunning: false,
     isPaused: false,
-    intervalId: null
+    intervalId: null,
+    defaultDuration: 25
   },
 
-  // Quick links state
+  // Quick links state (existing)
   quickLinks: [],
   linkCounter: 0,
 
-  // UI state
+  // UI state (transient, not persisted)
   editingTaskId: null,
-  isInitialized: false
+  isInitialized: false,
+  settingsPanelOpen: false,
+  
+  // User preferences (persisted)
+  userPreferences: {
+    userName: '',
+    theme: 'light',
+    sortOrder: 'newest',
+    timerDuration: 25,
+    timerPreset: 'default'
+  },
+
+  defaults: {
+    timerDuration: 25,
+    sortOrder: 'newest',
+    theme: 'light'
+  }
 };
 ```
 
-### State Update Flow
+### Sort Order Enumeration
 
-```
-User Interaction
-     ↓
-Event Handler
-     ↓
-Validation
-     ↓
-Update AppState
-     ↓
-Update LocalStorage
-     ↓
-Update DOM
-```
-
-### State Persistence Strategy
-
-**Persistent State** (written to LocalStorage immediately):
-- Tasks: Added, edited, deleted, marked complete
-- Quick Links: Added or deleted
-
-**Transient State** (not persisted):
-- Timer countdown and state
-- UI editing mode flags
-- Button active states
-
-**Synchronization Points:**
-1. Application initialization: Load all data from LocalStorage
-2. User actions: Update state, save to storage, render UI
-3. Page unload: No special handling needed (state will reload on next visit)
-
----
-
-## Event Handling and User Interactions
-
-### Event Listener Map
-
-| Event Type | Target | Handler | Action |
-|-----------|--------|---------|--------|
-| `click` | #timer-start | `handleTimerStart()` | Start/resume timer |
-| `click` | #timer-stop | `handleTimerStop()` | Pause/resume timer |
-| `click` | #timer-reset | `handleTimerReset()` | Reset to 25:00 |
-| `click` | #task-add | `handleAddTask()` | Add new task |
-| `keypress` | #task-input | `handleTaskInputKeypress()` | Add task on Enter |
-| `click` | .task-checkbox | `handleTaskToggle()` | Mark complete/incomplete |
-| `click` | .task-edit | `handleEditTask()` | Enter edit mode |
-| `click` | .task-delete | `handleDeleteTask()` | Delete task |
-| `click` | #link-add | `handleAddLink()` | Add new quick link |
-| `keypress` | #link-url | `handleLinkInputKeypress()` | Add link on Enter |
-| `click` | .quick-link-btn | `handleQuickLinkClick()` | Open link in new tab |
-| `click` | .link-delete | `handleDeleteLink()` | Delete link |
-
-### Event Handler Workflows
-
-#### Task Addition
-```
-User types in task input → Clicks Add or presses Enter
-  ↓
-Validate: non-empty, non-whitespace, ≤500 chars
-  ↓
-Create task object with unique ID and timestamps
-  ↓
-Add to AppState.tasks
-  ↓
-Save to LocalStorage under dashboard_tasks key
-  ↓
-Re-render task list
-  ↓
-Clear input field and restore focus
-```
-
-#### Timer Start
-```
-User clicks Start
-  ↓
-If already running: no action
-  ↓
-If paused: set isPaused = false, resume from saved time
-  ↓
-If stopped: set isRunning = true, start interval
-  ↓
-Every 1 second:
-  - Decrement timeRemaining by 1
-  - Update DOM display
-  - If timeRemaining === 0:
-    - Stop timer
-    - Trigger notification
-    - Update button states
-```
-
-#### Task Edit
-```
-User clicks Edit on task
-  ↓
-Set editingTaskId = task.id
-  ↓
-Replace task text with editable input
-  ↓
-Show Save and Cancel buttons
-  ↓
-On Save:
-  - Validate new text
-  - Update task.text and updatedAt
-  - Save to LocalStorage
-  - Exit edit mode
-  - Re-render task
-  ↓
-On Cancel:
-  - Clear editingTaskId
-  - Re-render task without saving
-```
-
----
-
-## Algorithm Details
-
-### Time and Greeting Update Algorithm
+The application supports five distinct sort orders, each serving different user needs. The sort order is persisted in LocalStorage and restored on page load. The default sort order is "newest" to match the requirement of showing most recent tasks first.
 
 ```javascript
-function updateTimeAndGreeting() {
-  const now = new Date();
+const SortOrder = {
+  NEWEST: 'newest',
+  OLDEST: 'oldest',
+  NAME_ASC: 'name-asc',
+  NAME_DESC: 'name-desc',
+  COMPLETION: 'completion'
+};
+```
+
+### Settings Schema Definition
+
+The settings schema defines the structure of persisted user preferences with type validation:
+
+```javascript
+const SettingsSchema = {
+  userName: {
+    type: 'string',
+    default: '',
+    maxLength: 50,
+    sanitization: value => String(value).trim().substring(0, 50)
+  },
+  theme: {
+    type: 'string',
+    default: 'light',
+    validation: value => ['light', 'dark'].includes(value)
+  },
+  sortOrder: {
+    type: 'string',
+    default: 'newest',
+    validation: value => Object.values(SortOrder).includes(value)
+  },
+  timerDuration: {
+    type: 'number',
+    default: 25,
+    validation: value => Number.isInteger(value) && value >= 1 && value <= 120
+  },
+  timerPreset: {
+    type: 'string',
+    default: 'default',
+    validation: value => ['15', 'default', '45', 'custom'].includes(value)
+  }
+};
+```
+
+### LocalStorage Keys
+
+```javascript
+const StorageKeys = {
+  TASKS: 'dashboard_tasks',
+  QUICK_LINKS: 'dashboard_quick_links',
+  SETTINGS: 'dashboard_settings'
+};
+```
+
+## Implementation Details
+
+### New State Additions
+
+The application state object has been extended to include new properties for user preferences and enhanced task management. Transient UI state is clearly separated from persistent preferences. Properties like `settingsPanelOpen` and `editingTaskId` are not persisted because they represent temporary UI state that should reset on page reload. This separation ensures that LocalStorage contains only meaningful user data while the UI can still maintain its current state during an active session.
+
+### UI Changes
+
+The settings panel is implemented as a modal overlay that appears when the user clicks the gear icon. The gear icon is positioned next to the greeting section and uses an inline SVG icon for visual clarity. The panel contains organized sections for each preference category with clear labels and input controls. The modal backdrop dims the background content to focus user attention on the settings.
+
+### Algorithm for Duplicate Detection
+
+The duplicate detection algorithm ensures that tasks with the same text are identified regardless of case. The algorithm normalizes both the new task text and existing task texts to lowercase before comparison. This approach handles all variations of case sensitivity while preserving the original task text capitalization for display.
+
+```javascript
+function isDuplicateTask(taskText) {
+  const normalizedInput = taskText.trim().toLowerCase();
   
-  // Update date
-  const dateString = now.toLocaleDateString('en-US', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
+  return AppState.tasks.some(existingTask => {
+    const normalizedExisting = existingTask.text.trim().toLowerCase();
+    return normalizedExisting === normalizedInput;
   });
-  
-  // Update time (12-hour format)
-  const hours = now.getHours();
-  const minutes = String(now.getMinutes()).padStart(2, '0');
-  const ampm = hours >= 12 ? 'PM' : 'AM';
-  const displayHours = hours % 12 || 12;
-  const timeString = `${displayHours}:${minutes} ${ampm}`;
-  
-  // Determine greeting based on hour
-  let greeting = 'Good Evening';
-  if (hours >= 5 && hours < 12) {
-    greeting = 'Good Morning';
-  } else if (hours >= 12 && hours < 17) {
-    greeting = 'Good Afternoon';
-  }
-  
-  // Update DOM
-  document.querySelector('.greeting-message').textContent = greeting;
-  document.querySelector('.date').textContent = dateString;
-  document.querySelector('.time').textContent = timeString;
-}
-
-// Called on initialization and every 1000ms
-```
-
-### Timer Countdown Algorithm
-
-```javascript
-function startTimer() {
-  if (AppState.timer.isRunning) return;
-  
-  AppState.timer.isRunning = true;
-  AppState.timer.isPaused = false;
-  
-  AppState.timer.intervalId = setInterval(() => {
-    if (AppState.timer.timeRemaining > 0) {
-      AppState.timer.timeRemaining--;
-      updateTimerDisplay();
-    } else {
-      stopTimer();
-      triggerTimerNotification();
-      updateButtonStates();
-    }
-  }, 1000);
-  
-  updateButtonStates();
-}
-
-function stopTimer() {
-  if (AppState.timer.isRunning) {
-    AppState.timer.isRunning = false;
-    AppState.timer.isPaused = true;
-  } else if (AppState.timer.isPaused) {
-    AppState.timer.isPaused = false;
-    startTimer();
-  }
-  
-  if (AppState.timer.intervalId !== null) {
-    clearInterval(AppState.timer.intervalId);
-    AppState.timer.intervalId = null;
-  }
-  
-  updateButtonStates();
-}
-
-function resetTimer() {
-  clearInterval(AppState.timer.intervalId);
-  AppState.timer.timeRemaining = 1500; // 25 minutes
-  AppState.timer.isRunning = false;
-  AppState.timer.isPaused = false;
-  AppState.timer.intervalId = null;
-  
-  updateTimerDisplay();
-  updateButtonStates();
-}
-
-function updateTimerDisplay() {
-  const minutes = Math.floor(AppState.timer.timeRemaining / 60);
-  const seconds = AppState.timer.timeRemaining % 60;
-  const display = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-  document.querySelector('.timer-text').textContent = display;
 }
 ```
 
-### Task CRUD Operations
+When a duplicate is detected, the system prevents the task from being added and displays an error notification. The notification message is clear and actionable: "This task already exists." The existing task remains unchanged, and the user can retry with different text.
 
-#### Create Task
-```javascript
-function addTask(text) {
-  // Validation
-  if (!text || text.trim() === '') {
-    showError('Task cannot be empty');
-    return false;
-  }
-  if (text.length > 500) {
-    showError('Task cannot exceed 500 characters');
-    return false;
-  }
-  
-  const timestamp = Date.now();
-  const id = `task_${timestamp}_${AppState.taskCounter++}`;
-  
-  const task = {
-    id,
-    text: text.trim(),
-    completed: false,
-    createdAt: timestamp,
-    updatedAt: timestamp
-  };
-  
-  AppState.tasks.push(task);
-  saveTasksToStorage();
-  renderTaskList();
-  
-  return true;
-}
-```
+### Sorting Logic
 
-#### Read Tasks
+Each sort order has a dedicated comparison function that defines how tasks are ordered. The comparison functions return negative, zero, or positive values based on the JavaScript Array.sort() specification. The sorting is stable, meaning tasks with equal sort keys maintain their relative order.
+
 ```javascript
-function loadTasksFromStorage() {
-  try {
-    const stored = localStorage.getItem('dashboard_tasks');
+function getSortComparison() {
+  switch (AppState.userPreferences.sortOrder) {
+    case SortOrder.NEWEST:
+      return (a, b) => b.createdAt - a.createdAt;
     
-    if (!stored) {
-      AppState.tasks = [];
-      return;
-    }
+    case SortOrder.OLDEST:
+      return (a, b) => a.createdAt - b.createdAt;
     
-    const data = JSON.parse(stored);
+    case SortOrder.NAME_ASC:
+      return (a, b) => a.text.localeCompare(b.text);
     
-    // Validate structure
-    if (!Array.isArray(data.tasks)) {
-      throw new Error('Invalid tasks structure');
-    }
+    case SortOrder.NAME_DESC:
+      return (a, b) => b.text.localeCompare(a.text);
     
-    // Validate each task
-    AppState.tasks = data.tasks.filter(task => validateTask(task));
+    case SortOrder.COMPLETION:
+      return (a, b) => {
+        if (a.completed !== b.completed) {
+          return a.completed ? 1 : -1;
+        }
+        return b.createdAt - a.createdAt;
+      };
     
-    if (AppState.tasks.length < data.tasks.length) {
-      showError('Some corrupted tasks were removed');
-      saveTasksToStorage(); // Re-save cleaned data
-    }
-  } catch (error) {
-    console.error('Error loading tasks:', error);
-    AppState.tasks = [];
-    showError('Failed to load tasks. Starting fresh.');
+    default:
+      return (a, b) => b.createdAt - a.createdAt;
   }
 }
 ```
 
-#### Update Task
+When the user selects a new sort option, the tasks are immediately re-rendered in the new order. The sort preference is saved to LocalStorage to persist the user's choice.
+
+### Theme CSS Variables Approach
+
+The theming system uses CSS custom properties (variables) defined on the `:root` element for light theme and a `.dark-theme` class for dark theme. All color values in the stylesheet reference these variables rather than hard-coded color values. This approach allows complete theme switching by changing a single class on the document element.
+
+```css
+:root {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8f9fa;
+  --bg-tertiary: #e9ecef;
+  --text-primary: #212529;
+  --text-secondary: #495057;
+  --text-muted: #868e96;
+  --accent-primary: #4c6ef5;
+  --accent-primary-hover: #364fc7;
+  --accent-danger: #ff6b6b;
+  --accent-success: #51cf66;
+  --border-color: #dee2e6;
+  --shadow-color: rgba(0, 0, 0, 0.15);
+  --card-bg: #ffffff;
+  --input-bg: #ffffff;
+  --button-text: #ffffff;
+}
+
+.dark-theme {
+  --bg-primary: #1a1a2e;
+  --bg-secondary: #16213e;
+  --bg-tertiary: #0f3460;
+  --text-primary: #eaeaea;
+  --text-secondary: #b8b8b8;
+  --text-muted: #888888;
+  --accent-primary: #5c7cfa;
+  --accent-primary-hover: #748ffc;
+  --accent-danger: #ff6b6b;
+  --accent-success: #51cf66;
+  --border-color: #2d3748;
+  --shadow-color: rgba(0, 0, 0, 0.4);
+  --card-bg: #1a1a2e;
+  --input-bg: #16213e;
+  --button-text: #ffffff;
+}
+```
+
+All components in the stylesheet use CSS variables for their styling. Theme changes include CSS transitions for smooth color adaptation (0.3 seconds).
+
+### LocalStorage Schema Changes
+
+The LocalStorage schema has been extended to include new keys for user preferences. The existing `dashboard_tasks` and `dashboard_quick_links` keys remain unchanged for backward compatibility. A new `dashboard_settings` key stores all user preferences in a unified structure.
+
 ```javascript
-function updateTask(taskId, updates) {
-  const task = AppState.tasks.find(t => t.id === taskId);
-  
-  if (!task) {
-    showError('Task not found');
-    return false;
-  }
-  
-  // Update only allowed fields
-  if (updates.text !== undefined) {
-    if (!updates.text || updates.text.trim() === '') {
-      showError('Task cannot be empty');
+const LocalStorageManager = {
+  TASKS_KEY: 'dashboard_tasks',
+  LINKS_KEY: 'dashboard_quick_links',
+  SETTINGS_KEY: 'dashboard_settings',
+
+  saveSettings() {
+    try {
+      localStorage.setItem(this.SETTINGS_KEY, JSON.stringify(AppState.userPreferences));
+      return true;
+    } catch (error) {
+      console.error('Error saving settings:', error);
       return false;
     }
-    if (updates.text.length > 500) {
-      showError('Task cannot exceed 500 characters');
-      return false;
+  },
+
+  loadSettings() {
+    try {
+      const stored = localStorage.getItem(this.SETTINGS_KEY);
+      if (!stored) {
+        return this.getDefaultSettings();
+      }
+      
+      const settings = JSON.parse(stored);
+      return this.validateAndNormalizeSettings(settings);
+    } catch (error) {
+      console.error('Error loading settings:', error);
+      return this.getDefaultSettings();
     }
-    task.text = updates.text.trim();
-  }
-  
-  if (updates.completed !== undefined) {
-    task.completed = Boolean(updates.completed);
-  }
-  
-  task.updatedAt = Date.now();
-  saveTasksToStorage();
-  renderTaskList();
-  
-  return true;
-}
-```
+  },
 
-#### Delete Task
-```javascript
-function deleteTask(taskId) {
-  const index = AppState.tasks.findIndex(t => t.id === taskId);
-  
-  if (index === -1) {
-    showError('Task not found');
-    return false;
-  }
-  
-  AppState.tasks.splice(index, 1);
-  saveTasksToStorage();
-  renderTaskList();
-  
-  return true;
-}
-```
+  getDefaultSettings() {
+    return {
+      userName: '',
+      theme: 'light',
+      sortOrder: 'newest',
+      timerDuration: 25,
+      timerPreset: 'default'
+    };
+  },
 
-### LocalStorage Operations
-
-#### Save to Storage
-```javascript
-function saveTasksToStorage() {
-  try {
-    const data = { tasks: AppState.tasks };
-    localStorage.setItem('dashboard_tasks', JSON.stringify(data));
-  } catch (error) {
-    if (error.name === 'QuotaExceededError') {
-      showError('Storage full. Please delete some tasks.');
-    } else {
-      showError('Failed to save tasks');
-    }
-    console.error('Storage error:', error);
-  }
-}
-
-function saveLinksToStorage() {
-  try {
-    const data = { links: AppState.quickLinks };
-    localStorage.setItem('dashboard_quick_links', JSON.stringify(data));
-  } catch (error) {
-    if (error.name === 'QuotaExceededError') {
-      showError('Storage full. Please delete some links.');
-    } else {
-      showError('Failed to save links');
-    }
-    console.error('Storage error:', error);
-  }
-}
-```
-
-#### Load from Storage with Validation
-```javascript
-function loadFromStorage(key, validator) {
-  try {
-    const stored = localStorage.getItem(key);
+  validateAndNormalizeSettings(input) {
+    const defaults = this.getDefaultSettings();
+    const result = { ...defaults };
     
-    if (!stored) {
-      return [];
+    for (const key in SettingsSchema) {
+      const schema = SettingsSchema[key];
+      const value = input[key];
+      
+      if (schema.validation(value)) {
+        result[key] = schema.sanitization ? schema.sanitization(value) : value;
+      }
     }
     
-    const data = JSON.parse(stored);
-    
-    if (!Array.isArray(data.items)) {
-      throw new Error('Invalid data structure');
-    }
-    
-    return data.items.filter(item => validator(item));
-  } catch (error) {
-    console.error(`Error loading ${key}:`, error);
-    return [];
+    return result;
   }
-}
+};
 ```
-
-### URL Validation Algorithm
-
-```javascript
-function validateURL(url) {
-  // Must start with http:// or https://
-  if (!url.startsWith('http://') && !url.startsWith('https://')) {
-    return false;
-  }
-  
-  // Additional URL validation
-  try {
-    new URL(url); // Native browser URL constructor
-    return true;
-  } catch (error) {
-    return false;
-  }
-}
-```
-
-### Unique ID Generation
-
-```javascript
-function generateTaskId() {
-  return `task_${Date.now()}_${AppState.taskCounter++}`;
-}
-
-function generateLinkId() {
-  return `link_${Date.now()}_${AppState.linkCounter++}`;
-}
-```
-
----
 
 ## Error Handling
 
-### Error Categories and Recovery
+### Notification System
 
-#### 1. Corrupted LocalStorage Data
-
-**Scenario**: User's LocalStorage contains invalid JSON or malformed task/link objects
-
-**Recovery Strategy**:
-```javascript
-function loadTasksFromStorage() {
-  try {
-    const stored = localStorage.getItem('dashboard_tasks');
-    
-    if (!stored) {
-      AppState.tasks = [];
-      return;
-    }
-    
-    const data = JSON.parse(stored); // May throw SyntaxError
-    
-    if (!Array.isArray(data.tasks)) {
-      throw new Error('Invalid structure');
-    }
-    
-    // Filter out invalid items
-    const validTasks = data.tasks.filter(task => {
-      return task.id && 
-             task.text && 
-             typeof task.completed === 'boolean' &&
-             typeof task.createdAt === 'number' &&
-             typeof task.updatedAt === 'number';
-    });
-    
-    AppState.tasks = validTasks;
-    
-    if (validTasks.length < data.tasks.length) {
-      // Log warning but continue with valid data
-      console.warn(`Removed ${data.tasks.length - validTasks.length} corrupted tasks`);
-      saveTasksToStorage(); // Save cleaned data
-    }
-  } catch (error) {
-    console.error('Critical storage error:', error);
-    AppState.tasks = [];
-    localStorage.removeItem('dashboard_tasks'); // Clear corrupted data
-    showError('Task data was corrupted and reset. Sorry!');
-  }
-}
-```
-
-#### 2. LocalStorage Quota Exceeded
-
-**Scenario**: Browser LocalStorage is full (typically 5-10MB per origin)
-
-**Recovery Strategy**:
-```javascript
-function saveTasksToStorage() {
-  try {
-    const data = { tasks: AppState.tasks };
-    localStorage.setItem('dashboard_tasks', JSON.stringify(data));
-  } catch (error) {
-    if (error.name === 'QuotaExceededError') {
-      // Attempt to free space by removing oldest completed tasks
-      const oldestCompleted = AppState.tasks
-        .filter(t => t.completed)
-        .sort((a, b) => a.createdAt - b.createdAt)
-        .slice(0, 10);
-      
-      oldestCompleted.forEach(task => {
-        deleteTask(task.id);
-      });
-      
-      // Retry save
-      try {
-        const data = { tasks: AppState.tasks };
-        localStorage.setItem('dashboard_tasks', JSON.stringify(data));
-        showError('Storage was full. Removed old completed tasks.');
-      } catch (retryError) {
-        showError('Storage full and cannot be freed. Please delete tasks manually.');
-      }
-    } else {
-      showError('Failed to save tasks.');
-    }
-  }
-}
-```
-
-#### 3. Invalid User Input
-
-**Scenario**: User enters empty task, invalid URL, or oversized text
-
-**Validation and Recovery**:
-```javascript
-function validateTaskInput(text) {
-  const errors = [];
-  
-  if (!text) {
-    errors.push('Task cannot be empty');
-  } else if (text.trim() === '') {
-    errors.push('Task cannot be only whitespace');
-  } else if (text.length > 500) {
-    errors.push('Task cannot exceed 500 characters');
-  }
-  
-  return { isValid: errors.length === 0, errors };
-}
-
-function handleAddTask() {
-  const input = document.getElementById('task-input');
-  const { isValid, errors } = validateTaskInput(input.value);
-  
-  if (!isValid) {
-    errors.forEach(error => showError(error));
-    input.focus();
-    return;
-  }
-  
-  addTask(input.value);
-  input.value = '';
-  input.focus();
-}
-```
-
-#### 4. Missing DOM Elements
-
-**Scenario**: Required HTML elements are missing (indicates malformed template)
-
-**Recovery Strategy**:
-```javascript
-function initializeApp() {
-  const requiredElements = [
-    '.greeting-message',
-    '.date',
-    '.time',
-    '.timer-text',
-    '#timer-start',
-    '#timer-stop',
-    '#timer-reset',
-    '#task-input',
-    '#task-add',
-    '#task-list',
-    '#link-name',
-    '#link-url',
-    '#link-add',
-    '#links-container'
-  ];
-  
-  const missing = requiredElements.filter(selector => {
-    return !document.querySelector(selector);
-  });
-  
-  if (missing.length > 0) {
-    console.error('Missing required elements:', missing);
-    showError('Application failed to initialize. Please reload the page.');
-    return false;
-  }
-  
-  return true;
-}
-```
-
-#### 5. Timer Interval Cleanup
-
-**Scenario**: Multiple timer intervals are accidentally created
-
-**Prevention and Recovery**:
-```javascript
-function startTimer() {
-  // Clear any existing interval first
-  if (AppState.timer.intervalId !== null) {
-    clearInterval(AppState.timer.intervalId);
-  }
-  
-  // Now start fresh
-  AppState.timer.isRunning = true;
-  AppState.timer.intervalId = setInterval(() => {
-    // Timer logic...
-  }, 1000);
-}
-
-function stopAllTimers() {
-  if (AppState.timer.intervalId !== null) {
-    clearInterval(AppState.timer.intervalId);
-    AppState.timer.intervalId = null;
-  }
-}
-
-// Call on page unload to prevent memory leaks
-window.addEventListener('beforeunload', stopAllTimers);
-```
-
-### Error Display to User
-
-```javascript
-function showError(message) {
-  // Create temporary error notification
-  const errorDiv = document.createElement('div');
-  errorDiv.className = 'error-notification';
-  errorDiv.textContent = message;
-  
-  document.body.appendChild(errorDiv);
-  
-  // Remove after 5 seconds
-  setTimeout(() => {
-    errorDiv.remove();
-  }, 5000);
-}
-
-function showSuccess(message) {
-  // Similar to showError but with success styling
-  const successDiv = document.createElement('div');
-  successDiv.className = 'success-notification';
-  successDiv.textContent = message;
-  
-  document.body.appendChild(successDiv);
-  
-  setTimeout(() => {
-    successDiv.remove();
-  }, 3000);
-}
-```
+The application uses a centralized notification system for displaying errors and success messages. Notifications appear in the top-right corner with appropriate styling for error (red) and success (green) states. Notifications automatically dismiss after a configurable duration to avoid cluttering the interface. The notification system is used for duplicate task detection, validation errors, and storage failures.
 
 ### Graceful Degradation
 
-If critical features fail:
-1. **Timer Fails**: Show static 25:00 display, disable timer controls
-2. **LocalStorage Fails**: Show warning, allow user to continue in memory-only mode (data lost on refresh)
-3. **DOM Parsing Fails**: Show error message, attempt to recover with minimal UI
-4. **Time Update Fails**: Show static time, disable clock updates
+When LocalStorage is unavailable or quota exceeded, the application degrades gracefully. Users can continue using the application during the session, but changes are not persisted. The application provides clear messaging about the storage limitation while maintaining full functionality. When storage recovers (such as clearing space), the application resumes normal persistence.
 
----
+### Input Validation
 
-## Correctness Properties
+All user inputs undergo validation before acceptance. Task text is validated for non-empty content and length limits. Timer duration inputs are validated against the 1-120 minute range. URLs are validated to ensure they begin with http:// or https://. Name inputs have length limits and are sanitized of potentially dangerous characters. Validation failures display clear error messages without modifying application state.
 
-*A property is a characteristic or behavior that should hold true across all valid executions of a system—essentially, a formal statement about what the system should do. Properties serve as the bridge between human-readable specifications and machine-verifiable correctness guarantees.*
+### Data Validation on Load
 
-### Property 1: Date Formatting Produces Valid Day-Month-Year Pattern
-
-*For any* date, the formatted date string SHALL match the pattern "Weekday, Month Day, Year" where Weekday is a full day name (Monday-Sunday), Month is a full month name (January-December), Day is 1-2 numeric digits (1-31), and Year is exactly 4 numeric digits.
-
-**Validates: Requirements 1.1**
-
-### Property 2: Time Formatting Produces Valid 12-Hour AM/PM Pattern
-
-*For any* hour (0-23) and minute value (0-59), the formatted time string SHALL match the pattern "H:MM AM/PM" where H is 1-2 numeric digits (1-12), MM is exactly 2 zero-padded numeric digits (00-59), and AM/PM is correctly set based on hour (AM for hours 0-11, PM for hours 12-23).
-
-**Validates: Requirements 1.2**
-
-### Property 3: Morning Greeting for Early Hours
-
-*For any* hour in the range [5, 12), the getGreeting() function SHALL return "Good Morning".
-
-**Validates: Requirements 1.3**
-
-### Property 4: Afternoon Greeting for Midday Hours
-
-*For any* hour in the range [12, 17), the getGreeting() function SHALL return "Good Afternoon".
-
-**Validates: Requirements 1.4**
-
-### Property 5: Evening Greeting for Late Hours
-
-*For any* hour in the range [17, 24) or [0, 5), the getGreeting() function SHALL return "Good Evening".
-
-**Validates: Requirements 1.5**
-
-### Property 6: Timer Initializes to 25 Minutes
-
-*For any* fresh timer instance, the timeRemaining value SHALL equal 1500 (representing 25 minutes × 60 seconds/minute).
-
-**Validates: Requirements 2.1**
-
-### Property 7: Timer Display Formats Correctly in MM:SS
-
-*For any* timeRemaining value in the range [0, 1500], the formatted timer display SHALL match the pattern "MM:SS" where MM is 2 zero-padded digits (00-24) and SS is 2 zero-padded digits (00-59).
-
-**Validates: Requirements 2.6**
-
-### Property 8: Valid Task Addition Increases List Size
-
-*For any* non-empty, non-whitespace task text (1-500 characters), adding the task SHALL increase the task list length by exactly 1.
-
-**Validates: Requirements 3.1**
-
-### Property 9: Added Task Appears in Rendered List
-
-*For any* valid task text, after adding it to the task list, the rendered DOM should contain an element containing that exact task text.
-
-**Validates: Requirements 3.2**
-
-### Property 10: Empty Task Addition Fails Without List Change
-
-*For any* empty string or string composed entirely of whitespace characters, attempting to add it as a task SHALL fail (return false), and the task list length SHALL remain unchanged.
-
-**Validates: Requirements 3.3**
-
-### Property 11: Task Persistence Round-Trip
-
-*For any* valid task text, after adding a task and immediately reading from LocalStorage (dashboard_tasks), the stored tasks array SHALL contain an object with matching text.
-
-**Validates: Requirements 3.4**
-
-### Property 12: Task IDs are Unique
-
-*For any* sequence of N tasks added to the system, all N task IDs SHALL be unique (no duplicates).
-
-**Validates: Requirements 3.5**
-
-### Property 13: Valid Edit Updates Task Text
-
-*For any* existing task and any valid new text (1-500 characters, non-empty/non-whitespace), saving the edit SHALL result in the task's text field matching the new text exactly.
-
-**Validates: Requirements 4.2**
-
-### Property 14: Edit Persistence Round-Trip
-
-*For any* existing task and any valid new text, after editing and immediately reading from LocalStorage, the stored task text SHALL match the new text.
-
-**Validates: Requirements 4.3**
-
-### Property 15: Edit Cancellation Preserves Original Text
-
-*For any* existing task with original text, if the task is edited to new valid text and then canceled (without saving), the task's text field SHALL return to matching the original text.
-
-**Validates: Requirements 4.4**
-
-### Property 16: Empty Edit Attempt Fails
-
-*For any* existing task, attempting to edit it to an empty string or whitespace-only string SHALL fail (return false), and the task text SHALL remain unchanged.
-
-**Validates: Requirements 4.5**
-
-### Property 17: Task Completion is Idempotent (Toggle Twice Equals Original)
-
-*For any* task, toggling its completed state twice SHALL result in the same state as before the toggles (if originally not completed, toggling twice returns to not completed; if completed, toggling twice returns to completed).
-
-**Validates: Requirements 5.1**
-
-### Property 18: Completion State Persistence Round-Trip
-
-*For any* existing task, after toggling its completed state and immediately reading from LocalStorage, the stored task's completed field SHALL match the new state.
-
-**Validates: Requirements 5.3**
-
-### Property 19: Completion Toggle Preserves Other Task Data
-
-*For any* existing task with initial state (text, completed, createdAt), after toggling the completed state, all fields except completed and updatedAt SHALL remain unchanged.
-
-**Validates: Requirements 5.4**
-
-### Property 20: Task Deletion Removes from List
-
-*For any* existing task, after deletion, the task list SHALL no longer contain an element with that task's ID.
-
-**Validates: Requirements 6.1**
-
-### Property 21: Task Deletion Removes from Storage
-
-*For any* existing task, after deleting it and immediately reading from LocalStorage (dashboard_tasks), the stored tasks array SHALL not contain an object with that task's ID.
-
-**Validates: Requirements 6.2**
-
-### Property 22: Deletion Removes DOM Element
-
-*For any* existing task rendered in the DOM with a data-task-id attribute, after deletion, the rendered task list SHALL not contain an element with that task-id.
-
-**Validates: Requirements 6.3**
-
-### Property 23: Immediate Save After Any Operation
-
-*For any* task operation (add, edit, toggle completion, or delete) performed on the in-memory task list, reading from LocalStorage immediately afterward SHALL reflect that change.
-
-**Validates: Requirements 7.3**
-
-### Property 24: Valid Quick Link Addition Increases Links Count
-
-*For any* valid quick link name (1-100 characters, non-empty/non-whitespace) and valid URL (matching http:// or https:// format), adding the link SHALL increase the links count by 1.
-
-**Validates: Requirements 8.1**
-
-### Property 25: Quick Link Persistence Round-Trip
-
-*For any* valid quick link name and URL, after adding the link and immediately reading from LocalStorage (dashboard_quick_links), the stored links array SHALL contain an object with matching name and URL.
-
-**Validates: Requirements 8.3**
-
-### Property 26: URL Validation Accepts Valid Formats
-
-*For any* string starting with "http://" or "https://" and representing a valid URL according to the browser's URL constructor, the validateURL() function SHALL return true.
-
-**Validates: Requirements 8.4**
-
-### Property 27: URL Validation Rejects Invalid Formats
-
-*For any* string that does not start with "http://" or "https://", or does not represent a valid URL, the validateURL() function SHALL return false.
-
-**Validates: Requirements 8.4**
-
-### Property 28: Quick Link Deletion Removes from List and Storage
-
-*For any* existing quick link, after deletion and immediately reading from LocalStorage (dashboard_quick_links), the stored links array SHALL not contain an object with that link's ID.
-
-**Validates: Requirements 8.5**
-
-### Property 29: Storage Performance Remains Acceptable
-
-*For any* task list size up to 1000 tasks, performing add/edit/delete/toggle operations on tasks SHALL complete within 100ms without blocking the UI.
-
-**Validates: Requirements 10.4**
-
-### Reflection on Property Redundancy
-
-Upon reviewing all 29 properties, the following consolidations and refinements were considered:
-
-- **Properties 3, 4, 5**: Greeting logic is universally applicable and cannot be consolidated further.
-- **Properties 8, 9**: Task addition is separated into list size and DOM rendering to cover both data and UI layers.
-- **Properties 10, 11**: Empty task validation and persistence are separate concerns that both merit testing.
-- **Properties 13, 14, 15, 16**: Edit operations cover the happy path, persistence, cancellation, and validation separately—each is a distinct behavior.
-- **Properties 17, 18, 19**: Task completion has distinct properties for idempotence, persistence, and data preservation.
-- **Properties 20, 21, 22**: Task deletion is verified in three places: in-memory list, LocalStorage, and DOM.
-- **Properties 26, 27**: URL validation is split into positive and negative cases for clarity.
-
-No redundancies were identified that would benefit from consolidation; each property addresses a distinct requirement and behavior.
-
----
-
-## Performance Considerations
-
-### Optimization Strategies
-
-1. **Debounced Renders**: Don't re-render entire task list on every change
-   - Render affected task only when possible
-   - Batch multiple updates before re-rendering
-
-2. **Efficient Event Delegation**: Use event delegation for dynamically added tasks
-   ```javascript
-   document.getElementById('task-list').addEventListener('click', (e) => {
-     if (e.target.classList.contains('task-checkbox')) {
-       handleTaskToggle(e.target.closest('.task-item').dataset.taskId);
-     }
-   });
-   ```
-
-3. **Minimize DOM Queries**: Cache DOM references during initialization
-   ```javascript
-   const DOM = {
-     greetingMessage: document.querySelector('.greeting-message'),
-     timerText: document.querySelector('.timer-text'),
-     taskList: document.getElementById('task-list'),
-     taskInput: document.getElementById('task-input'),
-     // ... other elements
-   };
-   ```
-
-4. **LocalStorage Batch Operations**: Write to storage only when necessary, not on every keystroke
-
-5. **CSS Animations**: Use CSS transitions instead of JavaScript animation loops
-
----
-
-## Testing Strategy
-
-### Unit Testing Areas
-
-1. **Task Management**
-   - Adding valid and invalid tasks
-   - Editing task text
-   - Toggling completion state
-   - Deleting tasks
-   - Task persistence and retrieval
-
-2. **Timer Operations**
-   - Starting timer from 25:00
-   - Pausing and resuming
-   - Resetting timer
-   - Auto-stop at 00:00
-   - Timer display formatting (MM:SS)
-
-3. **Data Validation**
-   - URL validation for quick links
-   - Task text validation (length, whitespace)
-   - Link name validation
-
-4. **LocalStorage Operations**
-   - Saving and loading tasks
-   - Saving and loading quick links
-   - Handling corrupted data
-   - Handling quota exceeded errors
-
-5. **Time and Greeting**
-   - Correct greeting based on hour
-   - Date formatting
-   - Time formatting (12-hour with AM/PM)
-
-6. **Quick Links**
-   - Adding valid links
-   - Deleting links
-   - Opening links in new tab
-   - Link persistence
-
-### Integration Testing Areas
-
-1. **Full Application Flow**
-   - Initialize app → Load data → Render UI
-   - Add task → Save → Display → Reload page → Verify persistence
-
-2. **User Workflows**
-   - Complete task workflow: add → edit → complete → delete
-   - Timer workflow: start → pause → resume → stop
-   - Quick link workflow: add → save → click → open
-
-3. **Error Recovery**
-   - Corrupted data recovery
-   - Storage full handling
-   - DOM initialization failure
-
-### Performance Testing
-
-- Initial page load time < 2 seconds
-- Task addition/deletion response < 300ms
-- Timer update smooth at 60fps
-- No memory leaks over extended use (10+ minute session)
-
----
-
-## File Structure
-
-```
-project/
-├── index.html          (HTML structure)
-├── css/
-│   └── style.css       (All styling)
-└── js/
-    └── script.js       (All functionality)
-```
-
-### index.html Size Target: < 10KB
-### css/style.css Size Target: < 15KB
-### js/script.js Size Target: < 30KB
-
----
-
-## Browser Compatibility
-
-- Chrome (latest): Fully supported
-- Firefox (latest): Fully supported
-- Edge (latest): Fully supported
-- Safari (latest): Fully supported
-
-**Tested Features:**
-- LocalStorage API
-- Date/Time APIs
-- DOM manipulation
-- Event listeners
-- CSS Grid/Flexbox
-- Keyboard events
-
----
-
-## Accessibility Considerations
-
-1. **ARIA Labels**: All interactive elements have descriptive labels
-2. **Semantic HTML**: Use appropriate HTML5 elements (button, input, section, etc.)
-3. **Keyboard Navigation**: All features accessible via keyboard
-4. **Color Contrast**: Text meets WCAG AA standards (4.5:1 minimum)
-5. **Focus Indicators**: Clear focus states for keyboard users
-6. **Error Messages**: Descriptive and visible error notifications
-
----
+All persisted data undergoes validation before being applied to application state. The validate functions check data types, ranges, and format constraints. Invalid data triggers a fallback to default values with console warnings for debugging. This defensive approach prevents corruption from malformed LocalStorage entries.
 
 ## Security Considerations
 
-1. **XSS Prevention**: Sanitize user input before inserting into DOM
-   ```javascript
-   function sanitizeText(text) {
-     const div = document.createElement('div');
-     div.textContent = text; // Sets as text, preventing HTML injection
-     return div.innerHTML;   // Get back as safe HTML
-   }
-   ```
+### Input Sanitization
 
-2. **LocalStorage Access**: Data is origin-specific (same-site only)
+All user inputs undergo sanitization before storage or rendering. Task text is trimmed of whitespace and limited in length to prevent storage abuse. URL inputs are validated to ensure they begin with http:// or https://. Name inputs have length limits and are sanitized of potentially dangerous characters. This defense-in-depth approach prevents XSS attacks and storage overflow.
 
-3. **No External Dependencies**: Eliminates supply chain vulnerabilities
+### LocalStorage Security
 
-4. **Input Validation**: All user input validated before storage or display
+LocalStorage data is treated as untrusted when loaded from storage. The validation functions ensure malformed data cannot corrupt application state. The application does not store sensitive information like passwords in LocalStorage. Session data that should not persist is kept in memory only, never written to LocalStorage.
 
----
+## Accessibility
 
-## Future Enhancement Opportunities
+### ARIA Attributes
 
-- Task categories or tags
-- Task priority levels
-- Recurring tasks
-- Dark mode
-- Drag-and-drop task reordering
-- Export/import functionality
-- Statistics dashboard
-- Mobile app using same codebase
+All new UI elements include appropriate ARIA attributes for screen reader compatibility. The settings panel uses `role="dialog"` and `aria-label` for proper announcement. Theme buttons include `aria-pressed` state to indicate active theme. The sort dropdown uses standard form control semantics for accessibility.
 
+### Keyboard Navigation
+
+The settings panel supports keyboard navigation with Tab and Shift+Tab for focus management. The Escape key closes the settings panel for consistent keyboard interaction. Theme buttons and other interactive elements are keyboard accessible. Focus management ensures keyboard users can access all new functionality.
+
+### Visual Accessibility
+
+Color contrast ratios meet WCAG AA standards in both light and dark themes. Theme changes respect user system preferences when available. Focus indicators are visible and clearly indicate keyboard focus. The interface adapts to user font size preferences through relative units.
+
+## Performance Optimizations
+
+### Efficient DOM Updates
+
+The task list rendering uses efficient DOM diffing principles. Rather than manipulating individual elements, the entire list is rebuilt when needed. This approach prevents subtle bugs from state desynchronization. The performance impact is negligible for typical task list sizes (under 100 tasks).
+
+### LocalStorage Batching
+
+Settings changes are immediately persisted to LocalStorage to prevent data loss. The small size of settings data means immediate saves have minimal performance impact. No batching is necessary for the current data volume. This approach ensures preferences are never lost even if the browser crashes.
+
+### Debounced Rendering
+
+Time-sensitive updates like the clock display use efficient rendering with minimal DOM queries. Timer updates occur once per second as required. The greeting component caches DOM element references to avoid repeated queries. These optimizations ensure the application remains responsive even on lower-end devices.
+
+## Correctness Properties
+
+### Property 1: Theme consistency across components
+
+*For any* visible component in the UI and *for any* theme selection (light or dark), the component's background, text, and border colors SHALL reference the theme variables appropriate to the selected theme.
+
+**Validates: Requirements 16.3, 16.4**
+
+### Property 2: Theme persistence round-trip
+
+*For any* theme selection and subsequent page reload, the application SHALL apply the same theme that was selected before the reload.
+
+**Validates: Requirements 16.5, 16.6**
+
+### Property 3: Settings immediate application
+
+*For any* settings change (name, theme, timer duration), the application SHALL apply the change to the interface immediately and persist it to Local Storage within the same operation.
+
+**Validates: Requirements 15.5, 15.6, 16.4, 17.3, 18.4, 18.5**
+
+### Property 4: Duplicate task prevention
+
+*For any* task text and *for any* existing task list, if a task with the same text exists (case-insensitive comparison), adding a new task SHALL NOT modify the task list and SHALL display an error notification.
+
+**Validates: Requirements 19.1, 19.2, 19.3, 19.4**
+
+### Property 5: Sort order consistency
+
+*For any* sort order selection and *for any* task list state, the rendered task list SHALL be correctly ordered according to the selected sort algorithm immediately after selection.
+
+**Validates: Requirements 20.3, 20.6**
+
+### Property 6: Sort preference persistence
+
+*For any* sort order selection and subsequent page reload, the application SHALL restore the same sort order that was selected before the reload.
+
+**Validates: Requirements 20.4, 20.5**
+
+### Property 7: Timer duration validation
+
+*For any* timer duration setting (preset or custom), the application SHALL validate the duration is between 1 and 120 minutes, apply the validated duration to the timer, and persist the setting.
+
+**Validates: Requirements 18.5, 18.6, 18.7, 18.8**
+
+### Property 8: Name personalization
+
+*For any* non-empty name setting and *for any* time of day, the greeting message SHALL include the name in the format "Good [Timeperiod], [Name]!"
+
+**Validates: Requirements 17.4, 17.7**
+
+### Property 9: Settings initialization
+
+*For any* fresh installation (no stored settings), the application SHALL initialize all settings to their default values: light theme, newest-first sort, 25-minute timer, and empty name.
+
+**Validates: Requirements 15.5, 16.5, 18.7, 20.4**
+
+## Testing Strategy
+
+### Unit Testing Approach
+
+Unit tests verify each sorting algorithm produces correct ordering for known inputs. Duplicate detection tests cover case-insensitive matching with various text inputs. Theme variable application tests verify CSS values match expected theme. Settings persistence tests verify round-trip save/load operations.
+
+### Integration Testing Approach
+
+Integration tests verify that settings changes immediately reflect in the UI. Theme toggle tests verify both visual appearance and data persistence. Task creation tests verify duplicate prevention at the integration level. Sort functionality tests verify that new tasks appear in correct sorted position.
+
+### Manual Testing Checklist
+
+Manual testing validates smooth theme transitions and visual consistency. Settings panel behavior is verified including open/close and input handling. All sorting options are tested with various task states. Theme persistence is tested across page reloads. Accessibility is verified with screen readers and keyboard navigation.
